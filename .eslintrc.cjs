@@ -66,5 +66,13 @@ module.exports = {
 				'import/no-extraneous-dependencies': 'off',
 			},
 		},
+		{
+			// Prose content — long paragraphs in template literals shouldn't be broken
+			// to fit the code width. The file is mostly exported strings for LLM context.
+			files: ['src/instructions.ts'],
+			rules: {
+				'max-len': 'off',
+			},
+		},
 	],
 };

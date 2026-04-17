@@ -14,6 +14,7 @@ import { PasteTokenProvider } from './auth/paste-token-provider';
 import { PulseApiClient } from './api/client';
 import { tools } from './tools';
 import { ToolContext } from './tools/types';
+import { PULSE_SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS } from './instructions';
 
 // Type-erased wrapper — zod-to-json-schema's deep generic return type causes
 // TS2589 when combined with MCP SDK's schema typing. Erase at the boundary.
@@ -46,14 +47,25 @@ async function main(): Promise<void> {
 
 	const server = new Server(
 		{ name: 'pulse-mcp-server', version: '0.1.0' },
-		{ capabilities: { tools: {} } }
+		{ capabilities: { tools: {} }, instructions: PULSE_SERVER_INSTRUCTIONS }
 	);
+
+	// Warn on boot if any registered tool lacks a description in TOOL_DESCRIPTIONS —
+	// the inline description will be used as a fallback, but this means the central
+	// copy didn't keep up with the code.
+	for (const t of tools) {
+		if (!TOOL_DESCRIPTIONS[t.name]) {
+			console.error(
+				`[pulse-mcp-server] warning: tool ${t.name} has no entry in TOOL_DESCRIPTIONS, using inline description`
+			);
+		}
+	}
 
 	server.setRequestHandler(ListToolsRequestSchema, async () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const toolList: any[] = tools.map((t) => ({
 			name: t.name,
-			description: t.description,
+			description: TOOL_DESCRIPTIONS[t.name] ?? t.description,
 			inputSchema: zodToJsonSchema(t.inputSchema),
 		}));
 		return { tools: toolList };
