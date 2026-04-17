@@ -4,15 +4,15 @@
 	"description": "MCP server for Pulse APIs — query Pulse data from Claude and other AI tools",
 	"private": true,
 	"license": "UNLICENSED",
-	"main": "dist/src/index.js",
+	"main": "dist/index.js",
 	"bin": {
-		"pulse-mcp-server": "dist/src/index.js"
+		"pulse-mcp-server": "dist/index.js"
 	},
 	"scripts": {
 		"prepare": "husky install",
 		"prebuild": "rimraf dist",
 		"build": "tsc --project tsconfig.build.json",
-		"start": "node dist/src/index.js",
+		"start": "node dist/index.js",
 		"dev": "ts-node --transpile-only src/index.ts",
 		"lint": "eslint \"src/**/*.ts\"",
 		"lint:fix": "eslint \"src/**/*.ts\" --fix",

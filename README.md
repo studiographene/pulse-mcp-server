@@ -62,7 +62,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "pulse": {
       "command": "node",
-      "args": ["/absolute/path/to/pulse-mcp-server/dist/src/index.js"]
+      "args": ["/absolute/path/to/pulse-mcp-server/dist/index.js"]
     }
   }
 }
@@ -73,7 +73,7 @@ Restart Claude Desktop. The Pulse tools will appear in the tools menu.
 #### Claude Code
 
 ```bash
-claude mcp add pulse node /absolute/path/to/pulse-mcp-server/dist/src/index.js
+claude mcp add pulse node /absolute/path/to/pulse-mcp-server/dist/index.js
 ```
 
 ## Environment variables
