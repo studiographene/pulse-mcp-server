@@ -1,4 +1,41 @@
-# MAC finder DSstore
-**/.DS_Store
+# Dependencies
+node_modules/
+.pnpm-store/
 
-# add your gitignore contents below
+# Build output
+dist/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+*.lcov
+
+# Env files (never commit tokens or secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local MCP auth/config (token file lives in user home, but guard against accidental copies)
+pulse-mcp-token.json
+.pulse-mcp/
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Jest
+.jest-cache/
