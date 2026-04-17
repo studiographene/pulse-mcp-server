@@ -1,5 +1,16 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { getProjectContext } from '../utils/project-context';
+
+/** Resolve repoIds from args or by auto-fetching the project, matching dev-process behaviour. */
+async function resolveRepoIds(
+	args: { projectId: string; repoIds?: string[] },
+	api: import('../api/client').PulseApiClient
+): Promise<string[] | undefined> {
+	if (args.repoIds && args.repoIds.length > 0) return args.repoIds;
+	const ctx = await getProjectContext(api, args.projectId);
+	return ctx.repoIds;
+}
 
 /**
  * Technical Success Criteria (TSC) metrics — product security, page-speed scans,
@@ -44,19 +55,21 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 		'Fetch test-case coverage metrics for a project — line / branch / function coverage ' +
 		'per file or repo. Useful for "what is our test coverage on X repo".',
 	inputSchema: TestCoverageInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
+	handler: async (args, ctx) => {
+		const repoIds = await resolveRepoIds(args, ctx.api);
+		return ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/test-case-coverage`,
 			query: {
 				branch: args.branch,
 				range: args.range,
-				repoIds: args.repoIds,
+				repoIds,
 				search: args.search,
 				page: args.page,
 				limit: args.limit,
 			},
-		}),
+		});
+	},
 };
 
 const VersionUpgradesInput = z.object({
@@ -77,12 +90,13 @@ export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput>
 	handler: async (args, ctx) => {
 		const prefixMap: Record<string, string> = { default: '', v1: '/v1', v2: '/v2' };
 		const prefix = prefixMap[args.apiVersion];
+		const repoIds = await resolveRepoIds(args, ctx.api);
 		return ctx.api.request({
 			method: 'GET',
 			path: `${prefix}/projects/${args.projectId}/metrics/tsc/version-upgrades${
 				args.includeDetails ? '/details' : ''
 			}`,
-			query: { branch: args.branch, range: args.range, repoIds: args.repoIds },
+			query: { branch: args.branch, range: args.range, repoIds },
 		});
 	},
 };

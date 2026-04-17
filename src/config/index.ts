@@ -13,6 +13,8 @@ export function loadConfig(): AppConfig {
 		pulseApiBaseUrl:
 			process.env.PULSE_API_BASE_URL ?? 'https://prod.apis.pulse.studiographene.com',
 		tokenFilePath: process.env.PULSE_MCP_TOKEN_PATH,
-		requestTimeoutMs: Number(process.env.PULSE_API_TIMEOUT_MS ?? 10_000),
+		// Default 60s: observed metric endpoints take 3–30s against live data;
+		// 10s was too aggressive for real queries. Override via PULSE_API_TIMEOUT_MS.
+		requestTimeoutMs: Number(process.env.PULSE_API_TIMEOUT_MS ?? 60_000),
 	};
 }
