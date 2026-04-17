@@ -1,0 +1,15 @@
+name: Release Please
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '.github/**'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  call_workflow:
+    uses: studiographene/github-action-workflows/.github/workflows/release-please.yml@master
+    secrets: inherit

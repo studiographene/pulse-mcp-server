@@ -1,0 +1,56 @@
+{
+	"name": "pulse-mcp-server",
+	"version": "0.1.0",
+	"description": "MCP server for Pulse APIs — query Pulse data from Claude and other AI tools",
+	"private": true,
+	"license": "UNLICENSED",
+	"main": "dist/src/index.js",
+	"bin": {
+		"pulse-mcp-server": "dist/src/index.js"
+	},
+	"scripts": {
+		"prepare": "husky install",
+		"prebuild": "rimraf dist",
+		"build": "tsc --project tsconfig.build.json",
+		"start": "node dist/src/index.js",
+		"dev": "ts-node --transpile-only src/index.ts",
+		"lint": "eslint \"src/**/*.ts\"",
+		"lint:fix": "eslint \"src/**/*.ts\" --fix",
+		"format": "prettier --write \"src/**/*.ts\"",
+		"test": "jest --coverage --coverageReporters=\"json-summary\" --runInBand --detectOpenHandles --coverageReporters='lcov'",
+		"test:watch": "jest --watch --runInBand",
+		"test:cov": "jest --coverage --runInBand",
+		"validate-branch": "validate-branch-name '^(master|develop){1}$|^(feature|fix|hotfix|release)/[A-Z]{1,}-[0-9]{1,}'"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.0.4",
+		"axios": "^1.7.9",
+		"zod": "^3.24.1",
+		"zod-to-json-schema": "^3.24.1"
+	},
+	"devDependencies": {
+		"@commitlint/cli": "^19.6.1",
+		"@commitlint/config-conventional": "^19.6.0",
+		"@types/jest": "^29.5.14",
+		"@types/node": "^22.10.2",
+		"@typescript-eslint/eslint-plugin": "^8.18.1",
+		"@typescript-eslint/parser": "^8.18.1",
+		"eslint": "^8.57.1",
+		"eslint-config-airbnb-base": "^15.0.0",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-import-resolver-typescript": "^3.7.0",
+		"eslint-plugin-import": "^2.31.0",
+		"husky": "^9.1.7",
+		"jest": "^29.7.0",
+		"prettier": "^3.4.2",
+		"rimraf": "^6.0.1",
+		"ts-jest": "^29.2.5",
+		"ts-node": "^10.9.2",
+		"tsconfig-paths": "^4.2.0",
+		"typescript": "^5.7.2",
+		"validate-branch-name": "^1.3.2"
+	},
+	"engines": {
+		"node": ">=18"
+	}
+}
