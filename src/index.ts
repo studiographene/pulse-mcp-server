@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+/* eslint-disable no-console, import/no-unresolved, import/extensions */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -7,13 +7,18 @@ import {
 	CallToolRequestSchema,
 	ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { zodToJsonSchema as zodToJsonSchemaRaw } from 'zod-to-json-schema';
 import { loadConfig } from './config';
 import { FileTokenStore } from './auth/file-token-store';
 import { PasteTokenProvider } from './auth/paste-token-provider';
 import { PulseApiClient } from './api/client';
 import { tools } from './tools';
 import { ToolContext } from './tools/types';
+
+// Type-erased wrapper — zod-to-json-schema's deep generic return type causes
+// TS2589 when combined with MCP SDK's schema typing. Erase at the boundary.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const zodToJsonSchema = (schema: any): any => zodToJsonSchemaRaw(schema);
 
 /**
  * Entry point for the Pulse MCP server (v1: local stdio transport).
@@ -44,13 +49,15 @@ async function main(): Promise<void> {
 		{ capabilities: { tools: {} } }
 	);
 
-	server.setRequestHandler(ListToolsRequestSchema, async () => ({
-		tools: tools.map((t) => ({
+	server.setRequestHandler(ListToolsRequestSchema, async () => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const toolList: any[] = tools.map((t) => ({
 			name: t.name,
 			description: t.description,
-			inputSchema: zodToJsonSchema(t.inputSchema) as Record<string, unknown>,
-		})),
-	}));
+			inputSchema: zodToJsonSchema(t.inputSchema),
+		}));
+		return { tools: toolList };
+	});
 
 	server.setRequestHandler(CallToolRequestSchema, async (req) => {
 		const tool = tools.find((t) => t.name === req.params.name);

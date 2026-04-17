@@ -2,6 +2,28 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { AuthProvider, TokenStore } from '../auth/types';
 import { RequestOptions, ReissueTokenResponse } from './types';
 
+/**
+ * Serialises query params in the shape Pulse's BE expects:
+ *   arrays -> repeated `name[]=value` (matches the live FE traffic we observed)
+ *   primitives -> standard encoding
+ *   null/undefined -> skipped
+ */
+function serialiseParams(params: Record<string, unknown> | undefined): string {
+	if (!params) return '';
+	const parts: string[] = [];
+	Object.entries(params).forEach(([key, value]) => {
+		if (value === undefined || value === null) return;
+		if (Array.isArray(value)) {
+			value.forEach((v) => {
+				parts.push(`${encodeURIComponent(key)}[]=${encodeURIComponent(String(v))}`);
+			});
+		} else {
+			parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+		}
+	});
+	return parts.join('&');
+}
+
 export interface PulseApiClientOptions {
 	baseUrl: string;
 	auth: AuthProvider;
@@ -44,6 +66,7 @@ export class PulseApiClient {
 			method: options.method,
 			url: options.path,
 			params: options.query,
+			paramsSerializer: { serialize: serialiseParams },
 			data: options.body,
 			headers: { Authorization: `Bearer ${token.accessToken}` },
 			validateStatus: (s) => s < 500 || s === 419,

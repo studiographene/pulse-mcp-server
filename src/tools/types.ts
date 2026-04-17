@@ -24,4 +24,19 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput = unknown> 
 	handler: (args: z.infer<TInput>, ctx: ToolContext) => Promise<TOutput>;
 }
 
-export type AnyToolDefinition = ToolDefinition<z.ZodTypeAny, unknown>;
+/**
+ * Type-erased handler for registry storage.
+ *
+ * Zod's generics are invariant, so `ToolDefinition<ZodObject<...>, unknown>` is NOT
+ * assignable to `ToolDefinition<ZodTypeAny, unknown>`. We erase `args: any` at the
+ * registry boundary to avoid the variance collision — individual handlers still get
+ * fully-typed `args` because they're defined against the narrow `ToolDefinition<TInput>`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface AnyToolDefinition {
+	name: string;
+	description: string;
+	inputSchema: z.ZodTypeAny;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	handler: (args: any, ctx: ToolContext) => Promise<unknown>;
+}
