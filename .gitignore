@@ -39,3 +39,7 @@ pnpm-debug.log*
 
 # Jest
 .jest-cache/
+
+# One-off smoke test scripts (not committed; use pnpm dev / pnpm test for proper suites)
+scripts/
+

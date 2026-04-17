@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { getProjectContext } from '../utils/project-context';
 
 /**
  * Development Process metrics (8 endpoints unified as one tool).
@@ -62,6 +63,11 @@ export const getDevProcessMetricTool: ToolDefinition<typeof DevProcessInput> = {
 		'Most questions about engineering output, PR health, or delivery pace route here.',
 	inputSchema: DevProcessInput,
 	handler: async (args, ctx) => {
+		// Spec marks repoIds/companyId optional, but the BE 500s without them.
+		// Auto-fetch from the project if the caller didn't supply them.
+		const needsContext = !args.companyId || !args.repoIds || args.repoIds.length === 0;
+		const projectCtx = needsContext ? await getProjectContext(ctx.api, args.projectId) : null;
+
 		const segment = CATEGORY_TO_PATH[args.category];
 		const path = `/v1/projects/${args.projectId}/metrics/dev-process/${segment}${
 			args.includeDetails ? '/details' : ''
@@ -75,8 +81,8 @@ export const getDevProcessMetricTool: ToolDefinition<typeof DevProcessInput> = {
 				range: args.range,
 				type: args.type,
 				branch: args.branch,
-				companyId: args.companyId,
-				repoIds: args.repoIds,
+				companyId: args.companyId ?? projectCtx?.companyId,
+				repoIds: args.repoIds && args.repoIds.length > 0 ? args.repoIds : projectCtx?.repoIds,
 			},
 		});
 	},
