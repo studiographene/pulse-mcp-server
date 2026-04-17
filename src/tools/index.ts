@@ -26,6 +26,7 @@ import {
 } from './activity';
 import { listFeedbackTool, getFeedbackTool } from './feedback';
 import { getTechAuditTool } from './tech-audit';
+import { listProjectSprintsTool, listProjectReleasesTool } from './jira';
 import { proposeMemberChangesTool, applyMemberChangesTool } from './project-members-update';
 
 /**
@@ -67,6 +68,10 @@ export const tools: AnyToolDefinition[] = [
 	listFeedbackTool,
 	getFeedbackTool,
 	getTechAuditTool,
+
+	// Jira integration — list sprints + releases (call these before QA/PM metrics that need filters)
+	listProjectSprintsTool,
+	listProjectReleasesTool,
 
 	// Write tools (propose/apply safety pattern)
 	proposeMemberChangesTool,
