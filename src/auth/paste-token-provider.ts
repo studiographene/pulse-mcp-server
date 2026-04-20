@@ -5,8 +5,8 @@ import { AuthProvider, PulseToken, TokenStore } from './types';
  *
  * Flow:
  *   1. User logs into pulse.studiographene.com in their browser
- *   2. User grabs the `token` cookie value from DevTools
- *   3. User writes it to ~/.pulse-mcp/token.json (or uses the `pulse_set_token` tool — TBD)
+ *   2. User copies the `token` cookie value from DevTools
+ *   3. User writes it to ~/.pulse-mcp/token.json
  *   4. This provider reads it for every tool call
  *
  * On 401, refresh() throws — the user must paste a new token.

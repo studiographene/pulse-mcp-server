@@ -45,7 +45,10 @@ module.exports = {
 		'lines-between-class-members': 0,
 		'consistent-return': 0,
 		'no-restricted-syntax': 0,
-		'@typescript-eslint/no-unused-vars': ['error'],
+		'@typescript-eslint/no-unused-vars': [
+			'error',
+			{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+		],
 		'@typescript-eslint/no-explicit-any': 'warn',
 		'@typescript-eslint/explicit-member-accessibility': [
 			'error',

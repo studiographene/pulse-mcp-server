@@ -24,10 +24,7 @@ const DevExSurveyInput = z.object({
 
 export const getDevExSurveyTool: ToolDefinition<typeof DevExSurveyInput> = {
 	name: 'pulse_get_devex_survey',
-	description:
-		'Fetch DevEx (Developer Experience) survey results for a project on a specific ' +
-		'dimension — e.g. overall_devex, focus_n_flow, tooling_satisfaction, review_timelines. ' +
-		'Use for "how is the team feeling about tooling / reviews / deployment on X?" questions.',
+	description: 'DevEx survey scores on a chosen dimension. (See instructions.ts.)',
 	inputSchema: DevExSurveyInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -43,9 +40,7 @@ const DevExCommentsInput = z.object({
 
 export const getDevExCommentsTool: ToolDefinition<typeof DevExCommentsInput> = {
 	name: 'pulse_get_devex_comments',
-	description:
-		'Fetch free-text comments submitted against a DevEx survey dimension. Pair with ' +
-		'pulse_get_devex_survey to see the scores + the qualitative feedback together.',
+	description: 'Free-text comments for a DevEx dimension. (See instructions.ts.)',
 	inputSchema: DevExCommentsInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

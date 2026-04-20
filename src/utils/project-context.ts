@@ -26,24 +26,21 @@ interface ProjectResponse {
 	}>;
 }
 
+interface MaybeWrapped<T> {
+	data?: T;
+}
+
 const CACHE = new Map<string, { ctx: ProjectContext; fetchedAt: number }>();
 const TTL_MS = 5 * 60 * 1000;
 
-function isFresh(fetchedAt: number): boolean {
-	return Date.now() - fetchedAt < TTL_MS;
-}
-
-function unwrap(raw: unknown): ProjectResponse {
-	const maybeWrapped = raw as { data?: ProjectResponse } | ProjectResponse;
-	return ('data' in (maybeWrapped as object) && (maybeWrapped as { data?: ProjectResponse }).data
-		? (maybeWrapped as { data: ProjectResponse }).data
-		: (maybeWrapped as ProjectResponse)) as ProjectResponse;
+function unwrap<T>(raw: unknown): T {
+	const maybe = raw as MaybeWrapped<T>;
+	return (maybe?.data ?? raw) as T;
 }
 
 function extractRepoIds(project: ProjectResponse): string[] {
 	const github = (project.tools ?? []).find((t) => t.name === 'GITHUB');
-	const metas = github?.meta ?? [];
-	return metas
+	return (github?.meta ?? [])
 		.map((m) => m.integratorId)
 		.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
@@ -53,13 +50,29 @@ export async function getProjectContext(
 	projectId: string
 ): Promise<ProjectContext> {
 	const cached = CACHE.get(projectId);
-	if (cached && isFresh(cached.fetchedAt)) return cached.ctx;
+	if (cached && Date.now() - cached.fetchedAt < TTL_MS) return cached.ctx;
 
-	const project = unwrap(await api.request({ method: 'GET', path: `/projects/${projectId}` }));
+	const project = unwrap<ProjectResponse>(
+		await api.request({ method: 'GET', path: `/projects/${projectId}` })
+	);
 	const ctx: ProjectContext = {
 		companyId: project.companyId,
 		repoIds: extractRepoIds(project),
 	};
 	CACHE.set(projectId, { ctx, fetchedAt: Date.now() });
 	return ctx;
+}
+
+/**
+ * Returns the caller's repoIds if non-empty, otherwise auto-fetches them from the
+ * project. Used by metric tools that take an optional repoIds array.
+ */
+export async function resolveRepoIds(
+	api: PulseApiClient,
+	projectId: string,
+	supplied?: string[]
+): Promise<string[] | undefined> {
+	if (supplied && supplied.length > 0) return supplied;
+	const ctx = await getProjectContext(api, projectId);
+	return ctx.repoIds;
 }

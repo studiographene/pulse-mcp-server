@@ -37,13 +37,7 @@ const CoreQaInput = z.object({
 
 export const getQaMetricTool: ToolDefinition<typeof CoreQaInput> = {
 	name: 'pulse_get_qa_metric',
-	description:
-		'Fetch a core QA metric for a project: first-time-pass rate, reopen rate, or defect ' +
-		'resolution. Use for questions like "what is the FTP on [customer] this sprint?" or ' +
-		'"how long are defects taking to resolve?" ' +
-		'IMPORTANT: FTP, REOPEN_RATE, and DEFECT_RESOLUTION return empty without a sprints or ' +
-		'versions filter. If the user hasn\'t specified, first call pulse_list_project_sprints ' +
-		'and pass the last 1–3 sprint ids. Use pulse_list_project_releases for release-scoped queries.',
+	description: 'Core QA metric (FTP, reopen, defect resolution). (See instructions.ts.)',
 	inputSchema: CoreQaInput,
 	handler: async (args, ctx) => {
 		const segment = CORE_CATEGORY_TO_PATH[args.category];
@@ -82,12 +76,7 @@ const RcaInput = z.object({
 
 export const getQaRcaTool: ToolDefinition<typeof RcaInput> = {
 	name: 'pulse_get_qa_rca',
-	description:
-		'Fetch QA Root Cause Analysis (RCA) data for a project. Returns the distribution or ' +
-		'trend of defect root causes, either attributed to Development ("dev" side) or QA ' +
-		'("qa" side). Useful for retrospectives and quality conversations. ' +
-		'Typically needs sprints or versions filter — call pulse_list_project_sprints first if ' +
-		'unspecified.',
+	description: 'QA Root Cause Analysis: dev/qa side, multiple variants. (See instructions.ts.)',
 	inputSchema: RcaInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

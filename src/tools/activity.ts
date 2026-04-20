@@ -9,9 +9,7 @@ const ActivityOverviewInput = z.object({});
 
 export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInput> = {
 	name: 'pulse_get_activity_overview',
-	description:
-		'Fetch the organisation-level activity page data — cross-project rollups visible on ' +
-		"the Pulse Activity tab. Good for questions like 'how is the org doing overall this week'.",
+	description: 'Org-level cross-project activity dashboard. (See instructions.ts.)',
 	inputSchema: ActivityOverviewInput,
 	handler: async (_args, ctx) => ctx.api.request({ method: 'GET', path: '/activity' }),
 };
@@ -24,9 +22,7 @@ const OrgMembersInput = z.object({
 
 export const listOrgMembersTool: ToolDefinition<typeof OrgMembersInput> = {
 	name: 'pulse_list_org_members',
-	description:
-		'List members at organisation level with their rolled-up activity summary. Supports ' +
-		'pagination and filter by manager ("reportsTo"). Useful for manager-view queries.',
+	description: 'Org members with rolled-up activity (paginated). (See instructions.ts.)',
 	inputSchema: OrgMembersInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -42,9 +38,7 @@ const MemberProfileInput = z.object({
 
 export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 	name: 'pulse_get_member_profile',
-	description:
-		'Fetch an individual member activity profile — their cross-project metrics roll-up. ' +
-		'Use for 1:1 prep or individual performance conversations.',
+	description: 'One member\'s cross-project metrics. (See instructions.ts.)',
 	inputSchema: MemberProfileInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({ method: 'GET', path: `/activity/profile/${args.userId}` }),

@@ -8,9 +8,7 @@ const ListFeedbackInput = z.object({
 
 export const listFeedbackTool: ToolDefinition<typeof ListFeedbackInput> = {
 	name: 'pulse_list_feedback',
-	description:
-		'List feedback items submitted in Pulse. Paginated — default page=1, limit=20. ' +
-		'Each item has an id you can pass to pulse_get_feedback for full content.',
+	description: 'Paginated list of Pulse feedback items. (See instructions.ts.)',
 	inputSchema: ListFeedbackInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -26,8 +24,7 @@ const GetFeedbackInput = z.object({
 
 export const getFeedbackTool: ToolDefinition<typeof GetFeedbackInput> = {
 	name: 'pulse_get_feedback',
-	description:
-		'Fetch a single feedback item in full — body, submitter, any attachments, metadata.',
+	description: 'Single feedback item by id. (See instructions.ts.)',
 	inputSchema: GetFeedbackInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({ method: 'GET', path: `/feedback/${args.feedbackId}` }),

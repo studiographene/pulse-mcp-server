@@ -37,10 +37,7 @@ const CycleTimeInput = z.object({
 
 export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {
 	name: 'pulse_get_cycle_time',
-	description:
-		'Fetch cycle-time data for a project. "overall" = single headline figure; ' +
-		'"summary" = breakdown by phase (dev / QA / deployment) in graph or table form; ' +
-		'"details" = per-ticket cycle-time with optional sort key.',
+	description: 'Cycle time: overall / summary / details variants. (See instructions.ts.)',
 	inputSchema: CycleTimeInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

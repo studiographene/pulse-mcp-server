@@ -82,11 +82,7 @@ function computeDiff(
 
 export const proposeMemberChangesTool: ToolDefinition<typeof MemberChangeInput> = {
 	name: 'pulse_propose_project_member_changes',
-	description:
-		'DRY RUN for project team changes. Fetches the current team, computes what would be ' +
-		'added / removed / kept, and returns a diff WITHOUT applying anything. Always call this ' +
-		'first before pulse_apply_project_member_changes. Claude should show the diff to the ' +
-		'user and wait for explicit confirmation before applying.',
+	description: 'DRY RUN for project member edits — diff only. (See instructions.ts.)',
 	inputSchema: MemberChangeInput,
 	handler: async (args, ctx) => {
 		const project = extractMembers(
@@ -107,11 +103,7 @@ export const proposeMemberChangesTool: ToolDefinition<typeof MemberChangeInput> 
 
 export const applyMemberChangesTool: ToolDefinition<typeof MemberChangeInput> = {
 	name: 'pulse_apply_project_member_changes',
-	description:
-		'APPLIES project team changes via read-modify-write PUT. Must be called AFTER the user ' +
-		'has reviewed the diff from pulse_propose_project_member_changes. Fetches the full ' +
-		'project, modifies only the members array, and PUTs the complete payload back. ' +
-		'Returns the applied diff.',
+	description: 'APPLY project member changes after user confirms diff. (See instructions.ts.)',
 	inputSchema: MemberChangeInput,
 	handler: async (args, ctx) => {
 		const project = extractMembers(

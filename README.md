@@ -82,7 +82,7 @@ claude mcp add pulse node /absolute/path/to/pulse-mcp-server/dist/index.js
 |---|---|---|
 | `PULSE_API_BASE_URL` | `https://prod.apis.pulse.studiographene.com` | Pulse API host |
 | `PULSE_MCP_TOKEN_PATH` | `~/.pulse-mcp/token.json` | Where the access token lives |
-| `PULSE_API_TIMEOUT_MS` | `10000` | Per-request timeout |
+| `PULSE_API_TIMEOUT_MS` | `60000` | Per-request timeout (metric endpoints can take 3–30s) |
 
 ## Development
 

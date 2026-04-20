@@ -16,15 +16,7 @@
 		"strictNullChecks": true,
 		"forceConsistentCasingInFileNames": true,
 		"noFallthroughCasesInSwitch": true,
-		"resolveJsonModule": true,
-		"paths": {
-			"@src/*": ["src/*"],
-			"@auth/*": ["src/auth/*"],
-			"@api/*": ["src/api/*"],
-			"@tools/*": ["src/tools/*"],
-			"@utils/*": ["src/utils/*"],
-			"@config/*": ["src/config/*"]
-		}
+		"resolveJsonModule": true
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist", "**/*.spec.ts", "**/__tests__/**"]

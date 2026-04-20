@@ -17,10 +17,7 @@ const ListProjectsInput = z.object({
 
 export const listProjectsTool: ToolDefinition<typeof ListProjectsInput> = {
 	name: 'pulse_list_projects',
-	description:
-		'List all Pulse projects the current user has access to. Returns project summaries ' +
-		'including id, name, start/end dates, description, member count, and tool linking status. ' +
-		'Use this when the user asks "what projects do I have" or before calling any project-specific tool.',
+	description: 'List Pulse projects visible to the user. (See instructions.ts for full description.)',
 	inputSchema: ListProjectsInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -36,10 +33,7 @@ const GetProjectInput = z.object({
 
 export const getProjectTool: ToolDefinition<typeof GetProjectInput> = {
 	name: 'pulse_get_project',
-	description:
-		'Fetch full details for a single Pulse project — name, description, dates, linked ' +
-		'repos/boards, current team members, and tool integrations. Use this to answer questions ' +
-		'about a specific project or before member updates.',
+	description: 'Fetch full project details. (See instructions.ts for full description.)',
 	inputSchema: GetProjectInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -54,9 +48,7 @@ const ListProjectMembersInput = z.object({
 
 export const listProjectMembersTool: ToolDefinition<typeof ListProjectMembersInput> = {
 	name: 'pulse_list_project_members',
-	description:
-		'List the team members currently assigned to a Pulse project. Returns user id, name, ' +
-		'email, and role for each. Call this before proposing any member additions or removals.',
+	description: 'List the current team for a project. (See instructions.ts.)',
 	inputSchema: ListProjectMembersInput,
 	handler: async (args, ctx) => {
 		const project = (await ctx.api.request({
