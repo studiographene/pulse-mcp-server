@@ -16,7 +16,8 @@ export class FileTokenStore implements TokenStore {
 		this.path = path ?? join(homedir(), '.pulse-mcp', 'token.json');
 	}
 
-	public async get(): Promise<PulseToken | null> {
+	// userId is accepted for interface compatibility (multi-tenant v2) but ignored here.
+	public async get(_userId?: string): Promise<PulseToken | null> {
 		try {
 			const raw = await fs.readFile(this.path, 'utf8');
 			return JSON.parse(raw) as PulseToken;
@@ -26,12 +27,12 @@ export class FileTokenStore implements TokenStore {
 		}
 	}
 
-	public async set(token: PulseToken): Promise<void> {
+	public async set(token: PulseToken, _userId?: string): Promise<void> {
 		await fs.mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
 		await fs.writeFile(this.path, JSON.stringify(token, null, 2), { mode: 0o600 });
 	}
 
-	public async clear(): Promise<void> {
+	public async clear(_userId?: string): Promise<void> {
 		try {
 			await fs.unlink(this.path);
 		} catch (err: unknown) {

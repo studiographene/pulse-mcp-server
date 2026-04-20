@@ -15,11 +15,7 @@ const TechAuditInput = z.object({
 
 export const getTechAuditTool: ToolDefinition<typeof TechAuditInput> = {
 	name: 'pulse_get_tech_audit',
-	description:
-		"Fetch the Technical Audit for a Pulse project — codebase/CI checks against Studio " +
-		"Graphene's engineering standards (lint config, CI reusable workflows, semgrep setup, " +
-		'licence allowlist, etc.). Use for "is project X compliant with our engineering ' +
-		'standards?" questions.',
+	description: 'Tech audit: project compliance vs SG standards. (See instructions.ts.)',
 	inputSchema: TechAuditInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

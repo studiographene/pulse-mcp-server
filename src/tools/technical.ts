@@ -1,16 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
-import { getProjectContext } from '../utils/project-context';
-
-/** Resolve repoIds from args or by auto-fetching the project, matching dev-process behaviour. */
-async function resolveRepoIds(
-	args: { projectId: string; repoIds?: string[] },
-	api: import('../api/client').PulseApiClient
-): Promise<string[] | undefined> {
-	if (args.repoIds && args.repoIds.length > 0) return args.repoIds;
-	const ctx = await getProjectContext(api, args.projectId);
-	return ctx.repoIds;
-}
+import { resolveRepoIds } from '../utils/project-context';
 
 /**
  * Technical Success Criteria (TSC) metrics — product security, page-speed scans,
@@ -25,9 +15,7 @@ const ProductSecurityInput = z.object({
 
 export const getProductSecurityTool: ToolDefinition<typeof ProductSecurityInput> = {
 	name: 'pulse_get_product_security',
-	description:
-		'Fetch product-security scan results for a project (e.g. SAST/DAST findings, CVE ' +
-		'counts, vulnerability severity breakdown). Include details for per-finding list.',
+	description: 'Product security scan results (SAST/DAST). (See instructions.ts.)',
 	inputSchema: ProductSecurityInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -51,12 +39,10 @@ const TestCoverageInput = z.object({
 
 export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 	name: 'pulse_get_test_coverage',
-	description:
-		'Fetch test-case coverage metrics for a project — line / branch / function coverage ' +
-		'per file or repo. Useful for "what is our test coverage on X repo".',
+	description: 'Test coverage per file/repo. (See instructions.ts.)',
 	inputSchema: TestCoverageInput,
 	handler: async (args, ctx) => {
-		const repoIds = await resolveRepoIds(args, ctx.api);
+		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
 		return ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/test-case-coverage`,
@@ -83,14 +69,12 @@ const VersionUpgradesInput = z.object({
 
 export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput> = {
 	name: 'pulse_get_version_upgrades',
-	description:
-		'Fetch dependency / package version-upgrade status for a project: which packages are ' +
-		'out of date, how far behind, severity. v2 is the newest response shape (recommended).',
+	description: 'Out-of-date dependencies (v2 recommended). (See instructions.ts.)',
 	inputSchema: VersionUpgradesInput,
 	handler: async (args, ctx) => {
 		const prefixMap: Record<string, string> = { default: '', v1: '/v1', v2: '/v2' };
 		const prefix = prefixMap[args.apiVersion];
-		const repoIds = await resolveRepoIds(args, ctx.api);
+		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
 		return ctx.api.request({
 			method: 'GET',
 			path: `${prefix}/projects/${args.projectId}/metrics/tsc/version-upgrades${
@@ -105,7 +89,7 @@ const UrlsListInput = z.object({ projectId: z.string().uuid() });
 
 export const listProjectUrlsTool: ToolDefinition<typeof UrlsListInput> = {
 	name: 'pulse_list_project_urls',
-	description: 'List the URLs registered for page-speed / URL-level scanning on a project.',
+	description: 'List URLs registered for page-speed scanning. (See instructions.ts.)',
 	inputSchema: UrlsListInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -122,9 +106,7 @@ const UrlDetailInput = z.object({
 
 export const getUrlScanTool: ToolDefinition<typeof UrlDetailInput> = {
 	name: 'pulse_get_url_scan',
-	description:
-		'Fetch page-speed / Lighthouse-style scan results for a single registered URL. ' +
-		'Include details for the full per-scan payload.',
+	description: 'Page-speed / Lighthouse results for one URL. (See instructions.ts.)',
 	inputSchema: UrlDetailInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -145,9 +127,7 @@ const PageSpeedScanInput = z.object({
 
 export const getPageSpeedScanTool: ToolDefinition<typeof PageSpeedScanInput> = {
 	name: 'pulse_get_page_speed_scan',
-	description:
-		'Fetch page-speed scan results for a project. Omit pageSpeedInfoId to list all scans, ' +
-		'or provide one to get a single scan in detail.',
+	description: 'List or fetch page-speed scans for a project. (See instructions.ts.)',
 	inputSchema: PageSpeedScanInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

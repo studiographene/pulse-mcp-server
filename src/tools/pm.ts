@@ -21,10 +21,7 @@ const PmHeadlineInput = z.object({
 
 export const getPmMetricTool: ToolDefinition<typeof PmHeadlineInput> = {
 	name: 'pulse_get_pm_metric',
-	description:
-		'Fetch the headline PM success-criteria view for a project: estimates vs actuals, or ' +
-		'aggregate time spent. Use this for "how well are we tracking against plan" or ' +
-		'"where is time going on project X" questions.',
+	description: 'Headline PM metric (estimates-vs-actuals or time-spent). (See instructions.ts.)',
 	inputSchema: PmHeadlineInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -51,9 +48,7 @@ const EstimatesVsActualsInput = z.object({
 
 export const getEstimatesVsActualsTool: ToolDefinition<typeof EstimatesVsActualsInput> = {
 	name: 'pulse_get_estimates_vs_actuals',
-	description:
-		'Fetch per-ticket estimates vs actual time for a project, optionally scoped to one ' +
-		'sprint. Returns a table you can sort. Useful for estimation-accuracy retros.',
+	description: 'Per-ticket estimates vs actuals, sprint-scoped. (See instructions.ts.)',
 	inputSchema: EstimatesVsActualsInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -86,9 +81,7 @@ const TimeSpentInput = z.object({
 
 export const getTimeSpentTool: ToolDefinition<typeof TimeSpentInput> = {
 	name: 'pulse_get_time_spent',
-	description:
-		'Fetch time-spent breakdown for a project in different shapes: headline totals, ' +
-		'pie-chart by category, paginated per-entity table, or time-series trend.',
+	description: 'Time-spent breakdown (headline / pie / table / trend). (See instructions.ts.)',
 	inputSchema: TimeSpentInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({
@@ -112,9 +105,7 @@ const WorkBreakdownInput = z.object({
 
 export const getWorkBreakdownTool: ToolDefinition<typeof WorkBreakdownInput> = {
 	name: 'pulse_get_work_breakdown',
-	description:
-		'Fetch work-breakdown data for a project: "graph" shows current distribution ' +
-		'(by ticket type / status / etc.), "trends" shows how it has changed over time.',
+	description: 'Work breakdown distribution graph or trend. (See instructions.ts.)',
 	inputSchema: WorkBreakdownInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({

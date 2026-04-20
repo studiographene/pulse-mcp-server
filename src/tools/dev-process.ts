@@ -57,21 +57,17 @@ const DevProcessInput = z.object({
 
 export const getDevProcessMetricTool: ToolDefinition<typeof DevProcessInput> = {
 	name: 'pulse_get_dev_process_metric',
-	description:
-		'Fetch a development-process metric for a Pulse project. Covers code commits, lines of ' +
-		'code, PR volume/comments/wait-time/size, branch activity, and deployment frequency. ' +
-		'Most questions about engineering output, PR health, or delivery pace route here.',
+	description: 'Fetch a dev-process metric (commits, PRs, deploys, etc.). (See instructions.ts.)',
 	inputSchema: DevProcessInput,
 	handler: async (args, ctx) => {
 		// Spec marks repoIds/companyId optional, but the BE 500s without them.
-		// Auto-fetch from the project if the caller didn't supply them.
-		const needsContext = !args.companyId || !args.repoIds || args.repoIds.length === 0;
-		const projectCtx = needsContext ? await getProjectContext(ctx.api, args.projectId) : null;
-
+		// Fetch from project context once; cheap due to in-memory cache.
+		const projectCtx = await getProjectContext(ctx.api, args.projectId);
 		const segment = CATEGORY_TO_PATH[args.category];
 		const path = `/v1/projects/${args.projectId}/metrics/dev-process/${segment}${
 			args.includeDetails ? '/details' : ''
 		}`;
+		const repoIds = args.repoIds && args.repoIds.length > 0 ? args.repoIds : projectCtx.repoIds;
 		return ctx.api.request({
 			method: 'GET',
 			path,
@@ -81,8 +77,8 @@ export const getDevProcessMetricTool: ToolDefinition<typeof DevProcessInput> = {
 				range: args.range,
 				type: args.type,
 				branch: args.branch,
-				companyId: args.companyId ?? projectCtx?.companyId,
-				repoIds: args.repoIds && args.repoIds.length > 0 ? args.repoIds : projectCtx?.repoIds,
+				companyId: args.companyId ?? projectCtx.companyId,
+				repoIds,
 			},
 		});
 	},

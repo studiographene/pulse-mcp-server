@@ -28,7 +28,7 @@ export interface PulseApiClientOptions {
 	baseUrl: string;
 	auth: AuthProvider;
 	tokenStore: TokenStore;
-	/** Request timeout in ms. Default 10s. */
+	/** Request timeout in ms. Default 60s (metric endpoints can take 3–30s). */
 	timeoutMs?: number;
 }
 
@@ -48,7 +48,7 @@ export class PulseApiClient {
 	public constructor(private readonly opts: PulseApiClientOptions) {
 		this.http = axios.create({
 			baseURL: opts.baseUrl,
-			timeout: opts.timeoutMs ?? 10_000,
+			timeout: opts.timeoutMs ?? 60_000,
 		});
 	}
 

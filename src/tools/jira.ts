@@ -39,12 +39,7 @@ const ListSprintsInput = z.object({
 
 export const listProjectSprintsTool: ToolDefinition<typeof ListSprintsInput> = {
 	name: 'pulse_list_project_sprints',
-	description:
-		"List the Jira sprints for a Pulse project. Sprints are ordered newest-first. " +
-		"Call this BEFORE pulse_get_qa_metric, pulse_get_qa_rca, or pulse_get_estimates_vs_actuals " +
-		'if the user asks about a specific sprint, or if no sprint filter is given — several QA ' +
-		'metrics (FTP, reopen rate, defect resolution) return empty without a sprint filter. ' +
-		'Default behaviour: grab the last 1–3 recent sprints and pass their ids to the metric tool.',
+	description: 'Jira sprints for a project, newest-first. (See instructions.ts.)',
 	inputSchema: ListSprintsInput,
 	handler: async (args, ctx) => {
 		const raw = (await ctx.api.request({
@@ -97,10 +92,7 @@ const ListReleasesInput = z.object({
 
 export const listProjectReleasesTool: ToolDefinition<typeof ListReleasesInput> = {
 	name: 'pulse_list_project_releases',
-	description:
-		'List Jira releases (a.k.a. versions) for a Pulse project. Use BEFORE QA / PM metric ' +
-		'calls that accept a "versions" filter — pass the release ids to scope results. Default ' +
-		'returns all; filter by status="released" for shipped versions or "unreleased" for planned.',
+	description: 'Jira releases (versions) for a project. (See instructions.ts.)',
 	inputSchema: ListReleasesInput,
 	handler: async (args, ctx) => {
 		const raw = (await ctx.api.request({
