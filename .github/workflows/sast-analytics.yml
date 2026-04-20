@@ -1,0 +1,10 @@
+name: StudioGraphene-SAST-Analytics
+
+on:
+  push:
+    branches: [dev, master]
+
+jobs:
+  call-worflow:
+    uses: studiographene/github-action-workflows/.github/workflows/pulse-sast-analytics.yml@master # if you want alternatively pin to tag version version
+    secrets: inherit
