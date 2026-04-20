@@ -1,0 +1,11 @@
+name: pr-check
+
+on:
+  pull_request:
+    types: [edited, opened, reopened, synchronize]
+
+jobs:
+  call-worflow:
+    uses: studiographene/github-action-workflows/.github/workflows/pr-check.yml@master # if you want alternatively pin to tag version
+    # with:
+    #   jira_project_pr_title_scope: "ABC|abc"
