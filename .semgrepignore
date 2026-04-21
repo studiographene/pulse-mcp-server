@@ -1,0 +1,9 @@
+# Exclude test directories from SAST scanning
+src/**/__tests__/**
+src/**/*.test.ts
+src/**/*.spec.ts
+
+# Build output
+dist/
+coverage/
+node_modules/
