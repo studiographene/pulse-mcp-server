@@ -70,24 +70,24 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// Dev Process
 	pulse_get_dev_process_metric:
-		'Single enum-parameter tool covering 8 dev process endpoints: code commits, lines of code, PR count, PR comments, PR wait time, PR size, active branches, and deployment frequency. repoIds and companyId are optional and auto-populated from the project when omitted. Use for any GitHub-sourced engineering output question.',
+		'Single enum-parameter tool covering 8 dev process endpoints: code commits, lines of code, PR count, PR comments, PR wait time, PR size, active branches, and deployment frequency. repoIds and companyId are auto-populated from the project when omitted. includeDetails is supported only for NUMBER_COMMENTS_ADDED_TO_PRS, NUMBER_OF_BRANCHES, NUMBER_PR_RAISED, DEPLOYMENT_FREQUENCY, and SIZE_OF_PR (the last one additionally requires page + limit). branch defaults to ["main"] for LINES_OF_CODE+graph.',
 
 	// QA
 	pulse_get_qa_metric:
-		'Returns core QA metrics (FIRST_TIME_PASS_RATE, REOPEN_RATE, DEFECT_RESOLUTION) for a project. Requires a sprints or versions filter: without one, the response is empty. Call pulse_list_project_sprints first and pass the 3 most recent sprints, or pulse_list_project_releases for version-based views.',
+		'Returns core QA metrics (FIRST_TIME_PASS_RATE, REOPEN_RATE, DEFECT_RESOLUTION) for a project. Requires a sprints[] or versions[] filter for the base variant; DEFECT_RESOLUTION + includeDetails uses a singular sprintId instead. Call pulse_list_project_sprints first to get the ids.',
 
 	pulse_get_qa_rca:
-		"Root Cause Analysis for QA defects, split into dev-side and qa-side causes, with pie-chart, table, trend, and per-ticket-details variants. Use for 'why is our FTP rate declining' or 'what types of bugs are we shipping'. Chain with pulse_get_qa_metric so RCA narratives are supported by defect counts.",
+		"Root Cause Analysis for QA defects, split into dev-side and qa-side causes, with pie-chart, table, trends, and details variants. The `trends` variant additionally requires a `type` (bug-category name, e.g. 'Requirement Understanding gap') along with sprints or versions. Chain with pulse_get_qa_metric so RCA narratives are supported by defect counts.",
 
 	// PM
 	pulse_get_pm_metric:
-		"Headline PM view, with variants for estimates-vs-actuals and time-spent. Use as the first call for 'how accurate is our planning' or 'where is effort going'. For per-ticket or per-category detail, chain with pulse_get_estimates_vs_actuals or pulse_get_time_spent.",
+		"Headline PM view, with variants for estimates-vs-actuals and time-spent. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning' or 'where is effort going'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
 
 	pulse_get_estimates_vs_actuals:
 		'Per-ticket comparison of estimated vs actual hours, sprint-scoped. Use to find systematic under- or over-estimation and to surface specific tickets driving variance. Requires a sprint filter, so call pulse_list_project_sprints first.',
 
 	pulse_get_time_spent:
-		'Four variants: headline totals, pie-chart by category, paginated table of entries, and a time-series trend. Use to break down where team effort went (by ticket, category, or person) across a date range. The table variant supports page and limit params.',
+		'Four variants: headline totals, pie-chart by category, paginated table of entries, and a time-series trend. NOTE: the Pulse BE currently returns 501 "Feature Under Development" for all variants; the tool is preserved in case the BE is implemented later. Do not rely on this tool today.',
 
 	pulse_get_work_breakdown:
 		"Work distribution over a period: a graph showing split across ticket types or statuses (e.g. New Work vs Rework vs Refactor), or the same data as a trend over time. Use to answer 'what are we actually spending the sprint on' and to detect rising rework share.",

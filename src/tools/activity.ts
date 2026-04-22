@@ -3,6 +3,9 @@ import { ToolDefinition } from './types';
 
 /**
  * Activity endpoints — cross-project / organisation-level views, aggregated per member.
+ *
+ * Note on list_org_members: the Pulse BE returns 500 without page + limit despite the
+ * OpenAPI spec marking them optional. We enforce defaults here so the tool always works.
  */
 
 const ActivityOverviewInput = z.object({});
@@ -16,8 +19,8 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 
 const OrgMembersInput = z.object({
 	reportsTo: z.string().optional().describe('Filter to members reporting to this userId.'),
-	page: z.number().int().optional(),
-	limit: z.number().int().optional(),
+	page: z.number().int().min(1).default(1),
+	limit: z.number().int().min(1).max(100).default(20),
 });
 
 export const listOrgMembersTool: ToolDefinition<typeof OrgMembersInput> = {
@@ -38,7 +41,7 @@ const MemberProfileInput = z.object({
 
 export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 	name: 'pulse_get_member_profile',
-	description: 'One member\'s cross-project metrics. (See instructions.ts.)',
+	description: "One member's cross-project metrics. (See instructions.ts.)",
 	inputSchema: MemberProfileInput,
 	handler: async (args, ctx) =>
 		ctx.api.request({ method: 'GET', path: `/activity/profile/${args.userId}` }),
