@@ -24,7 +24,26 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 		'callers get `projects: []` by design. `organisationMembers` is always populated. ' +
 		'(See instructions.ts.)',
 	inputSchema: ActivityOverviewInput,
-	handler: async (_args, ctx) => ctx.api.request({ method: 'GET', path: '/activity' }),
+	handler: async (_args, ctx) => {
+		const res = (await ctx.api.request({ method: 'GET', path: '/activity' })) as {
+			data?: { projects?: unknown[] };
+		} & Record<string, unknown>;
+		// Attach an explicit note when the projects rollup is empty so callers
+		// don't mistake "intentionally gated to Engineering" for "tool is broken".
+		const projects = res?.data?.projects;
+		if (Array.isArray(projects) && projects.length === 0) {
+			return {
+				...res,
+				note:
+					'`projects` is empty. The BE gates this field to Engineering-department ' +
+					'users only (Backend, Frontend, Mobile, Cloud, Artificial Intelligence). ' +
+					"If you're in Product Management or another non-engineering department, " +
+					"this is by design — `organisationMembers` still reflects the whole org. " +
+					"For a specific project's data use pulse_list_projects + pulse_get_project.",
+			};
+		}
+		return res;
+	},
 };
 
 const OrgMembersInput = z.object({
