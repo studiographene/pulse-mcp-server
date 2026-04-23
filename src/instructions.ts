@@ -23,7 +23,7 @@ Metric categories and why they matter.
 - Dev process (commits, PR count, PR size, PR wait time, PR review comments, lines of code, active branches, deployment frequency): iteration cadence, review culture, delivery momentum. These are process signals, not output judgements; volume alone is not the goal.
 - QA (first time pass rate, reopen rate, defect resolution time): how much rework the team absorbs. Declining FTP or rising reopen rate almost always signals a systemic upstream issue rather than QA failing.
 - QA RCA (root cause analysis, split into dev-side and qa-side): where bugs originate. Dev RCA categories such as "Requirement Understanding", "Inadequate Unit Testing", or "Code Review Issues" point to specific process levers.
-- PM (estimates vs actuals, time spent, work breakdown): planning accuracy and effort distribution. A rising share of Rework in work breakdown often precedes a QA decline.
+- PM (estimates vs actuals, work breakdown): planning accuracy and effort distribution. A rising share of Rework in work breakdown often precedes a QA decline. (A separate time-spent metric was previously exposed via the BE but was shelved and is not available through this MCP.)
 - Technical (product security, test coverage, version upgrades, page speed): codebase health and risk exposure. Falling test coverage or stale dependencies show up later as quality problems.
 - Cycle time (overall, summary by phase, per-ticket details): how work flows through development, QA, and deployment states. Cycle time measures workflow flow, not logged effort hours.
 - DevEx (survey scores and free-text comments on dimensions like focus and flow, tooling satisfaction, codebase maintainability, requirements clarity): the human layer. Poor DevEx tends to correlate with problems across all other categories.
@@ -81,13 +81,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// PM
 	pulse_get_pm_metric:
-		"Headline PM view, with variants for estimates-vs-actuals and time-spent. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning' or 'where is effort going'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
+		"Headline PM view, currently used for estimates-vs-actuals. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
 
 	pulse_get_estimates_vs_actuals:
 		'Per-ticket comparison of estimated vs actual hours, sprint-scoped. Use to find systematic under- or over-estimation and to surface specific tickets driving variance. Requires a sprint filter, so call pulse_list_project_sprints first.',
-
-	pulse_get_time_spent:
-		'Four variants: headline totals, pie-chart by category, paginated table of entries, and a time-series trend. NOTE: the Pulse BE currently returns 501 "Feature Under Development" for all variants; the tool is preserved in case the BE is implemented later. Do not rely on this tool today.',
 
 	pulse_get_work_breakdown:
 		"Work distribution over a period: a graph showing split across ticket types or statuses (e.g. New Work vs Rework vs Refactor), or the same data as a trend over time. Use to answer 'what are we actually spending the sprint on' and to detect rising rework share.",
