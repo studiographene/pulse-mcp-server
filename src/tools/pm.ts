@@ -2,12 +2,12 @@ import { z } from 'zod';
 import { ToolDefinition } from './types';
 
 /**
- * PM metrics — 9 endpoints across three clusters: headline PM, estimates-vs-actuals,
- * time-spent (table/pie/trend/headline), work-breakdown (graph/trends).
+ * PM metrics — 3 clusters: headline PM, estimates-vs-actuals, work-breakdown (graph/trends).
  *
- * NOTE: pulse_get_time_spent currently returns 501 "Feature Under Development" from
- * the Pulse BE regardless of params. The tool is kept for MCP schema completeness
- * (and in case the BE implements it later) but callers should not expect success.
+ * Time-spent was previously exposed as pulse_get_time_spent but the underlying BE
+ * feature was shelved (all variants 501 behind the `time_spent_feature` Statsig flag
+ * with no plans to ship). Tool removed to avoid tempting Claude to call something
+ * that will never work.
  */
 
 const PM_METRIC = 'PM_SUCCESS_CRITERIA';
@@ -15,8 +15,8 @@ const PM_METRIC = 'PM_SUCCESS_CRITERIA';
 const PmHeadlineInput = z.object({
 	projectId: z.string().uuid(),
 	category: z
-		.enum(['ESTIMATES_VS_ACTUALS', 'TIME_SPENT'])
-		.describe('Top-level PM metric: planned-vs-actual effort, or raw time spent.'),
+		.enum(['ESTIMATES_VS_ACTUALS'])
+		.describe('Top-level PM metric. (TIME_SPENT removed — feature shelved on BE.)'),
 	type: z
 		.enum(['sprint', 'version'])
 		.default('sprint')
@@ -87,39 +87,6 @@ export const getEstimatesVsActualsTool: ToolDefinition<typeof EstimatesVsActuals
 		}),
 };
 
-const TimeSpentInput = z.object({
-	projectId: z.string().uuid(),
-	variant: z
-		.enum(['headline', 'pie-chart', 'table', 'trend'])
-		.describe(
-			'Which time-spent view: headline (totals), pie-chart (by category), ' +
-				'table (per-person/ticket), trend (over time).'
-		),
-	range: z.enum(['7 days', '30 days', '1 year']).default('30 days'),
-	page: z.number().int().min(1).optional().describe('Required for variant=table.'),
-	limit: z.number().int().min(1).optional().describe('Required for variant=table.'),
-});
-
-export const getTimeSpentTool: ToolDefinition<typeof TimeSpentInput> = {
-	name: 'pulse_get_time_spent',
-	description:
-		'Time-spent breakdown (headline / pie / table / trend). NOTE: Pulse BE currently ' +
-		'returns 501 Feature Under Development for this endpoint family. Tool preserved in ' +
-		"case BE is implemented later. (See instructions.ts.)",
-	inputSchema: TimeSpentInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
-			method: 'GET',
-			path: `/projects/${args.projectId}/metrics/pm/time-spent/${args.variant}`,
-			query: {
-				metric: PM_METRIC,
-				category: 'TIME_SPENT',
-				range: args.range,
-				page: args.page,
-				limit: args.limit,
-			},
-		}),
-};
 
 const WorkBreakdownInput = z.object({
 	projectId: z.string().uuid(),

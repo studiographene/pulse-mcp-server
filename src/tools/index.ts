@@ -6,7 +6,6 @@ import { getQaMetricTool, getQaRcaTool } from './qa';
 import {
 	getPmMetricTool,
 	getEstimatesVsActualsTool,
-	getTimeSpentTool,
 	getWorkBreakdownTool,
 } from './pm';
 import {
@@ -49,7 +48,6 @@ export const tools: AnyToolDefinition[] = [
 	getQaRcaTool,
 	getPmMetricTool,
 	getEstimatesVsActualsTool,
-	getTimeSpentTool,
 	getWorkBreakdownTool,
 	getProductSecurityTool,
 	getTestCoverageTool,
