@@ -56,8 +56,12 @@ const CycleTimeInput = z.object({
 			'qa.testing',
 			'qa.handover',
 		])
-		.optional(),
-	sortOrder: z.enum(['asc', 'desc']).optional(),
+		.optional()
+		.describe(
+			'Sort the details variant by this numeric field. BE-side sorting is broken ' +
+				"(returns 500 for any value), so the tool sorts the returned array client-side."
+		),
+	sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
 
 interface RawBoardsResponse {
@@ -86,6 +90,41 @@ function formatMs(ms: number | null | undefined): string {
 	return `${days}d ${remHours}h`;
 }
 
+/**
+ * Read a dotted key path (e.g. "development.total") from a nested object.
+ * Returns undefined if any segment is missing.
+ */
+function getDotted(obj: Record<string, unknown>, path: string): unknown {
+	return path
+		.split('.')
+		.reduce<unknown>(
+			(acc, key) =>
+				acc && typeof acc === 'object' && key in (acc as object)
+					? (acc as Record<string, unknown>)[key]
+					: undefined,
+			obj
+		);
+}
+
+/**
+ * Stable sort by a dotted-path numeric key, ignoring missing values.
+ * Used as a workaround for the BE's broken sort on cycle-time details.
+ */
+function sortByDottedKey(
+	rows: Array<Record<string, unknown>>,
+	key: string,
+	order: 'asc' | 'desc'
+): Array<Record<string, unknown>> {
+	const dir = order === 'desc' ? -1 : 1;
+	return [...rows].sort((a, b) => {
+		const av = getDotted(a, key);
+		const bv = getDotted(b, key);
+		const an = typeof av === 'number' ? av : Number.POSITIVE_INFINITY;
+		const bn = typeof bv === 'number' ? bv : Number.POSITIVE_INFINITY;
+		return (an - bn) * dir;
+	});
+}
+
 async function recentSprintIds(
 	api: PulseApiClient,
 	projectId: string,
@@ -104,30 +143,46 @@ async function recentSprintIds(
 	return sprints.slice(0, n).map((s) => s.id);
 }
 
+type CycleTimeArgs = z.infer<typeof CycleTimeInput>;
+type CycleTimeContext = { api: PulseApiClient };
+
+async function handleDetails(
+	args: CycleTimeArgs,
+	ctx: CycleTimeContext
+): Promise<unknown> {
+	// details needs singular sprint/version; auto-fill if omitted
+	const needsAutoSprint = !args.sprint && !args.version;
+	const sprint = needsAutoSprint
+		? (await recentSprintIds(ctx.api, args.projectId, 1))[0]
+		: args.sprint;
+
+	// Known BE bug: the details endpoint forwards sortKey/sortOrder to an
+	// external cycle-time metrics service which 500s on EVERY sortKey value
+	// (confirmed with all 10 documented keys). We omit them from the outgoing
+	// request and sort client-side from the returned array.
+	const res = (await ctx.api.request({
+		method: 'GET',
+		path: `/projects/${args.projectId}/cycle-time/details`,
+		query: { sprint, version: args.version },
+	})) as { data?: unknown } & Record<string, unknown>;
+
+	if (args.sortKey && Array.isArray(res?.data)) {
+		const sorted = sortByDottedKey(
+			res.data as Array<Record<string, unknown>>,
+			args.sortKey,
+			args.sortOrder
+		);
+		return { ...res, data: sorted };
+	}
+	return res;
+}
+
 export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {
 	name: 'pulse_get_cycle_time',
 	description: 'Cycle time: overall / summary / details variants. (See instructions.ts.)',
 	inputSchema: CycleTimeInput,
 	handler: async (args, ctx) => {
-		const isDetails = args.variant === 'details';
-
-		if (isDetails) {
-			// details needs singular sprint/version; auto-fill if omitted
-			const needsAutoSprint = !args.sprint && !args.version;
-			const sprint = needsAutoSprint
-				? (await recentSprintIds(ctx.api, args.projectId, 1))[0]
-				: args.sprint;
-			return ctx.api.request({
-				method: 'GET',
-				path: `/projects/${args.projectId}/cycle-time/details`,
-				query: {
-					sprint,
-					version: args.version,
-					sortKey: args.sortKey,
-					sortOrder: args.sortOrder,
-				},
-			});
-		}
+		if (args.variant === 'details') return handleDetails(args, ctx);
 
 		// overall / summary need sprints[] or versions[]; auto-fill if both missing
 		const noSprints = !args.sprints || args.sprints.length === 0;
