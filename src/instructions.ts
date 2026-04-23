@@ -117,10 +117,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// DevEx
 	pulse_get_devex_survey:
-		"DevEx survey scores on a specific dimension (focus_n_flow, tooling_satisfaction, codebase_maintainability, and similar). Use to correlate team sentiment with hard metrics, or when the user asks 'how does the team feel about X'.",
+		"DevEx survey scores on a single dimension (focus_n_flow, tooling_satisfaction, codebase_maintainability, and similar). Use when the user names a specific dimension. Requires a range filter: defaults to '30 days' if omitted. For a full project snapshot across all 13 dimensions, prefer pulse_get_devex_summary.",
 
 	pulse_get_devex_comments:
-		"Free-text survey comments for a given DevEx dimension. Use after pulse_get_devex_survey to enrich a low score with the qualitative 'why' from the team.",
+		"Free-text survey comments for a single DevEx dimension. Paginated. Requires a range filter. Use after pulse_get_devex_survey to enrich a low score with the qualitative 'why' from the team.",
+
+	pulse_get_devex_summary:
+		"Fetches all 13 DevEx survey dimensions in parallel for a project and returns them keyed by dimension with an average-score summary. Much more efficient than calling pulse_get_devex_survey 13 times. Set includeComments=true when the qualitative 'why' matters — much heavier response.",
 
 	// Activity (org-level)
 	pulse_get_activity_overview:
