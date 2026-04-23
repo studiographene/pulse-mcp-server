@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.0.0...v1.1.0) (2026-04-23)
+
+
+### Features
+
+* **PX-3685:** add DevEx summary tool + fix survey/comments range ([7fdb780](https://github.com/studiographene/pulse-mcp-server/commit/7fdb780b0a222e24e9274c4d525377b3ee66ee5c))
+* **PX-3685:** add DevEx summary tool + fix survey/comments range ([#4](https://github.com/studiographene/pulse-mcp-server/issues/4)) ([2444ca9](https://github.com/studiographene/pulse-mcp-server/commit/2444ca9944c3e965e39de3ddfb29b680d8bb7d58))
+
 ## 1.0.0 (2026-04-22)
 
 
