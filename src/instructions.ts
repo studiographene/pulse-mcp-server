@@ -23,7 +23,7 @@ Metric categories and why they matter.
 - Dev process (commits, PR count, PR size, PR wait time, PR review comments, lines of code, active branches, deployment frequency): iteration cadence, review culture, delivery momentum. These are process signals, not output judgements; volume alone is not the goal.
 - QA (first time pass rate, reopen rate, defect resolution time): how much rework the team absorbs. Declining FTP or rising reopen rate almost always signals a systemic upstream issue rather than QA failing.
 - QA RCA (root cause analysis, split into dev-side and qa-side): where bugs originate. Dev RCA categories such as "Requirement Understanding", "Inadequate Unit Testing", or "Code Review Issues" point to specific process levers.
-- PM (estimates vs actuals, time spent, work breakdown): planning accuracy and effort distribution. A rising share of Rework in work breakdown often precedes a QA decline.
+- PM (estimates vs actuals, work breakdown): planning accuracy and effort distribution. A rising share of Rework in work breakdown often precedes a QA decline. (A separate time-spent metric was previously exposed via the BE but was shelved and is not available through this MCP.)
 - Technical (product security, test coverage, version upgrades, page speed): codebase health and risk exposure. Falling test coverage or stale dependencies show up later as quality problems.
 - Cycle time (overall, summary by phase, per-ticket details): how work flows through development, QA, and deployment states. Cycle time measures workflow flow, not logged effort hours.
 - DevEx (survey scores and free-text comments on dimensions like focus and flow, tooling satisfaction, codebase maintainability, requirements clarity): the human layer. Poor DevEx tends to correlate with problems across all other categories.
@@ -81,13 +81,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// PM
 	pulse_get_pm_metric:
-		"Headline PM view, with variants for estimates-vs-actuals and time-spent. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning' or 'where is effort going'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
+		"Headline PM view, currently used for estimates-vs-actuals. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
 
 	pulse_get_estimates_vs_actuals:
 		'Per-ticket comparison of estimated vs actual hours, sprint-scoped. Use to find systematic under- or over-estimation and to surface specific tickets driving variance. Requires a sprint filter, so call pulse_list_project_sprints first.',
-
-	pulse_get_time_spent:
-		'Four variants: headline totals, pie-chart by category, paginated table of entries, and a time-series trend. NOTE: the Pulse BE currently returns 501 "Feature Under Development" for all variants; the tool is preserved in case the BE is implemented later. Do not rely on this tool today.',
 
 	pulse_get_work_breakdown:
 		"Work distribution over a period: a graph showing split across ticket types or statuses (e.g. New Work vs Rework vs Refactor), or the same data as a trend over time. Use to answer 'what are we actually spending the sprint on' and to detect rising rework share.",
@@ -103,13 +100,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		'Out-of-date dependency report with severity and distance from the latest version. Use for tech-debt conversations, security triage, and when planning upgrade work.',
 
 	pulse_list_project_urls:
-		'Lists URLs registered for page-speed scanning on a project. Call before pulse_get_url_scan or pulse_get_page_speed_scan to obtain the URL ids to target.',
+		'Lists URLs registered for page-speed scanning on a project. Call before pulse_get_url_scan to obtain the URL ids to target.',
 
 	pulse_get_url_scan:
-		'Page-speed and Lighthouse-style results for a single registered URL. Use for frontend performance questions or when the user names a specific endpoint. Pair with pulse_list_project_urls to resolve the URL id.',
-
-	pulse_get_page_speed_scan:
-		'Lists all page-speed scans on a project, or fetches a single scan by id. Use to get the scan history for a project before drilling into a specific result.',
+		"Page-speed / Lighthouse results for a single registered URL. Without includeDetails it returns the URL's latest scan (mobile + desktop scores per category); with includeDetails=true + a range, it returns the full history of scans for that URL. Pair with pulse_list_project_urls to resolve the URL id.",
 
 	// Cycle time
 	pulse_get_cycle_time:
@@ -117,10 +111,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// DevEx
 	pulse_get_devex_survey:
-		"DevEx survey scores on a specific dimension (focus_n_flow, tooling_satisfaction, codebase_maintainability, and similar). Use to correlate team sentiment with hard metrics, or when the user asks 'how does the team feel about X'.",
+		"DevEx survey scores on a single dimension (focus_n_flow, tooling_satisfaction, codebase_maintainability, and similar). Use when the user names a specific dimension. Requires a range filter: defaults to '30 days' if omitted. For a full project snapshot across all 13 dimensions, prefer pulse_get_devex_summary.",
 
 	pulse_get_devex_comments:
-		"Free-text survey comments for a given DevEx dimension. Use after pulse_get_devex_survey to enrich a low score with the qualitative 'why' from the team.",
+		"Free-text survey comments for a single DevEx dimension. Paginated. Requires a range filter. Use after pulse_get_devex_survey to enrich a low score with the qualitative 'why' from the team.",
+
+	pulse_get_devex_summary:
+		"Fetches all 13 DevEx survey dimensions in parallel for a project and returns them keyed by dimension with an average-score summary. Much more efficient than calling pulse_get_devex_survey 13 times. Set includeComments=true when the qualitative 'why' matters — much heavier response.",
 
 	// Activity (org-level)
 	pulse_get_activity_overview:

@@ -6,13 +6,23 @@ import { ToolDefinition } from './types';
  *
  * Note on list_org_members: the Pulse BE returns 500 without page + limit despite the
  * OpenAPI spec marking them optional. We enforce defaults here so the tool always works.
+ *
+ * Note on get_activity_overview: the BE intentionally returns `projects: []` for
+ * non-Engineering users. The `projects` rollup is gated to departments in
+ * {engineering-department list}. The
+ * `organisationMembers` block is returned for everyone. This is by design — a
+ * Product Manager calling the tool will see members but not the project rollup.
  */
 
 const ActivityOverviewInput = z.object({});
 
 export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInput> = {
 	name: 'pulse_get_activity_overview',
-	description: 'Org-level cross-project activity dashboard. (See instructions.ts.)',
+	description:
+		'Org-level activity dashboard (organisationMembers + projects rollup). NOTE: the ' +
+		'`projects` array is gated to Engineering-department users on the BE; non-Engineering ' +
+		'callers get `projects: []` by design. `organisationMembers` is always populated. ' +
+		'(See instructions.ts.)',
 	inputSchema: ActivityOverviewInput,
 	handler: async (_args, ctx) => ctx.api.request({ method: 'GET', path: '/activity' }),
 };
