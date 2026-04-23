@@ -68,6 +68,24 @@ interface RawBoardsResponse {
 	};
 }
 
+/**
+ * Pulse returns cycle-time values in MILLISECONDS (confirmed from the Pulse FE,
+ * which wraps these in `formatMillisecondsForCycleTime({ milliseconds })`). The
+ * raw numbers are unlabelled, so we augment responses with explicit unit metadata
+ * and a human-readable fallback.
+ */
+function formatMs(ms: number | null | undefined): string {
+	if (ms == null || !Number.isFinite(ms)) return 'n/a';
+	const totalMinutes = Math.round(ms / 60_000);
+	if (totalMinutes < 60) return `${totalMinutes}m`;
+	const hours = Math.floor(totalMinutes / 60);
+	const mins = totalMinutes % 60;
+	if (hours < 24) return `${hours}h ${mins}m`;
+	const days = Math.floor(hours / 24);
+	const remHours = hours % 24;
+	return `${days}d ${remHours}h`;
+}
+
 async function recentSprintIds(
 	api: PulseApiClient,
 	projectId: string,
@@ -118,7 +136,7 @@ export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {
 			noSprints && noVersions
 				? await recentSprintIds(ctx.api, args.projectId, 3)
 				: args.sprints;
-		return ctx.api.request({
+		const res = (await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/cycle-time/${args.variant}`,
 			query: {
@@ -126,6 +144,22 @@ export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {
 				sprints,
 				versions: args.versions,
 			},
-		});
+		})) as { data?: { overall?: number } & Record<string, unknown> } & Record<string, unknown>;
+
+		// Augment the overall variant with unit + human-readable form.
+		// The raw number from the BE is milliseconds (confirmed from the Pulse FE).
+		if (args.variant === 'overall' && typeof res?.data?.overall === 'number') {
+			return {
+				...res,
+				data: {
+					...res.data,
+					unit: 'milliseconds',
+					overallFormatted: formatMs(res.data.overall),
+					overallHours:
+						Math.round((res.data.overall / 3_600_000) * 100) / 100,
+				},
+			};
+		}
+		return res;
 	},
 };

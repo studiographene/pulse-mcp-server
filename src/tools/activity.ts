@@ -68,10 +68,37 @@ const MemberProfileInput = z.object({
 	userId: z.string().uuid().describe('Pulse user UUID.'),
 });
 
+/** Rewrite DD-MM-YYYY strings to ISO YYYY-MM-DD; pass everything else through. */
+function dmyToIso(value: unknown): unknown {
+	if (typeof value !== 'string') return value;
+	const m = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+	return m ? `${m[3]}-${m[2]}-${m[1]}` : value;
+}
+
+/** Deep-walk an object/array and convert DD-MM-YYYY date fields to ISO. */
+function normaliseDates(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(normaliseDates);
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value)) {
+			out[k] = /date|Date$/i.test(k) ? dmyToIso(v) : normaliseDates(v);
+		}
+		return out;
+	}
+	return value;
+}
+
 export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 	name: 'pulse_get_member_profile',
 	description: "One member's cross-project metrics. (See instructions.ts.)",
 	inputSchema: MemberProfileInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({ method: 'GET', path: `/activity/profile/${args.userId}` }),
+	handler: async (args, ctx) => {
+		const res = await ctx.api.request({
+			method: 'GET',
+			path: `/activity/profile/${args.userId}`,
+		});
+		// BE returns date fields in DD-MM-YYYY for this endpoint while every other
+		// tool returns ISO. Normalise at the edge so callers see one shape.
+		return normaliseDates(res);
+	},
 };
