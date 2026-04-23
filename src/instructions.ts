@@ -100,13 +100,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		'Out-of-date dependency report with severity and distance from the latest version. Use for tech-debt conversations, security triage, and when planning upgrade work.',
 
 	pulse_list_project_urls:
-		'Lists URLs registered for page-speed scanning on a project. Call before pulse_get_url_scan or pulse_get_page_speed_scan to obtain the URL ids to target.',
+		'Lists URLs registered for page-speed scanning on a project. Call before pulse_get_url_scan to obtain the URL ids to target.',
 
 	pulse_get_url_scan:
-		'Page-speed and Lighthouse-style results for a single registered URL. Use for frontend performance questions or when the user names a specific endpoint. Pair with pulse_list_project_urls to resolve the URL id.',
-
-	pulse_get_page_speed_scan:
-		'Lists all page-speed scans on a project, or fetches a single scan by id. Use to get the scan history for a project before drilling into a specific result.',
+		"Page-speed / Lighthouse results for a single registered URL. Without includeDetails it returns the URL's latest scan (mobile + desktop scores per category); with includeDetails=true + a range, it returns the full history of scans for that URL. Pair with pulse_list_project_urls to resolve the URL id.",
 
 	// Cycle time
 	pulse_get_cycle_time:
