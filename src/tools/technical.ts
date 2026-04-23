@@ -164,20 +164,7 @@ export const getUrlScanTool: ToolDefinition<typeof UrlDetailInput> = {
 		}),
 };
 
-const PageSpeedScanInput = z.object({
-	projectId: z.string().uuid(),
-	pageSpeedInfoId: z
-		.string()
-		.describe('Specific scan id. The listing endpoint does not exist; an id is required.'),
-});
-
-export const getPageSpeedScanTool: ToolDefinition<typeof PageSpeedScanInput> = {
-	name: 'pulse_get_page_speed_scan',
-	description: 'Fetch one page-speed scan by id. (See instructions.ts.)',
-	inputSchema: PageSpeedScanInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
-			method: 'GET',
-			path: `/projects/${args.projectId}/metrics/tsc/scan/${args.pageSpeedInfoId}`,
-		}),
-};
+// pulse_get_page_speed_scan was removed: it fetched a single historic scan by id, but
+// to discover a scan id you had to call pulse_get_url_scan first — and that response
+// already includes the latest scan's data (and with includeDetails, the full history).
+// Leaving both tools registered tempted Claude into redundant chains.

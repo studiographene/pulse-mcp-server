@@ -6,7 +6,6 @@ import { getQaMetricTool, getQaRcaTool } from './qa';
 import {
 	getPmMetricTool,
 	getEstimatesVsActualsTool,
-	getTimeSpentTool,
 	getWorkBreakdownTool,
 } from './pm';
 import {
@@ -15,10 +14,9 @@ import {
 	getVersionUpgradesTool,
 	listProjectUrlsTool,
 	getUrlScanTool,
-	getPageSpeedScanTool,
 } from './technical';
 import { getCycleTimeTool } from './cycle-time';
-import { getDevExSurveyTool, getDevExCommentsTool } from './devex';
+import { getDevExSurveyTool, getDevExCommentsTool, getDevExSummaryTool } from './devex';
 import {
 	getActivityOverviewTool,
 	listOrgMembersTool,
@@ -49,19 +47,18 @@ export const tools: AnyToolDefinition[] = [
 	getQaRcaTool,
 	getPmMetricTool,
 	getEstimatesVsActualsTool,
-	getTimeSpentTool,
 	getWorkBreakdownTool,
 	getProductSecurityTool,
 	getTestCoverageTool,
 	getVersionUpgradesTool,
 	listProjectUrlsTool,
 	getUrlScanTool,
-	getPageSpeedScanTool,
 	getCycleTimeTool,
 
 	// Other domains
 	getDevExSurveyTool,
 	getDevExCommentsTool,
+	getDevExSummaryTool,
 	getActivityOverviewTool,
 	listOrgMembersTool,
 	getMemberProfileTool,
