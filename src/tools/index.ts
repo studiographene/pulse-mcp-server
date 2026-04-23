@@ -14,7 +14,6 @@ import {
 	getVersionUpgradesTool,
 	listProjectUrlsTool,
 	getUrlScanTool,
-	getPageSpeedScanTool,
 } from './technical';
 import { getCycleTimeTool } from './cycle-time';
 import { getDevExSurveyTool, getDevExCommentsTool, getDevExSummaryTool } from './devex';
@@ -54,7 +53,6 @@ export const tools: AnyToolDefinition[] = [
 	getVersionUpgradesTool,
 	listProjectUrlsTool,
 	getUrlScanTool,
-	getPageSpeedScanTool,
 	getCycleTimeTool,
 
 	// Other domains
