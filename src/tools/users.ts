@@ -85,7 +85,12 @@ const FindUserInput = z.object({
 	query: z
 		.string()
 		.min(1)
-		.describe('Name or email (substring match, case-insensitive) to search for.'),
+		.describe(
+			'Name substring (case-insensitive) to search for. Matches against ' +
+				'firstName + lastName. Note: the Pulse /users endpoint does NOT return ' +
+				'email addresses, so email substrings cannot be matched here — use the ' +
+				'UUID directly if you have it.'
+		),
 	companyId: z.string().uuid().optional(),
 	limit: z
 		.number()
@@ -98,7 +103,7 @@ const FindUserInput = z.object({
 
 export const findUserTool: ToolDefinition<typeof FindUserInput> = {
 	name: 'pulse_find_user',
-	description: 'Find Pulse users by name/email substring. (See instructions.ts.)',
+	description: 'Find Pulse users by name substring. (See instructions.ts.)',
 	inputSchema: FindUserInput,
 	handler: async (args, ctx) => {
 		const raw = await ctx.api.request({
@@ -109,11 +114,7 @@ export const findUserTool: ToolDefinition<typeof FindUserInput> = {
 		const all = unwrapUsers(raw);
 		const q = args.query.toLowerCase();
 		const matches = all
-			.filter((u) => {
-				const name = fullName(u).toLowerCase();
-				const email = (u.email ?? '').toLowerCase();
-				return name.includes(q) || email.includes(q);
-			})
+			.filter((u) => fullName(u).toLowerCase().includes(q))
 			.slice(0, args.limit);
 		return { query: args.query, matchCount: matches.length, matches };
 	},

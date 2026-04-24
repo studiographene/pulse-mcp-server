@@ -100,8 +100,8 @@ export const getQaRcaTool: ToolDefinition<typeof RcaInput> = {
 	name: 'pulse_get_qa_rca',
 	description: 'QA Root Cause Analysis: dev/qa side, multiple variants. (See instructions.ts.)',
 	inputSchema: RcaInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
+	handler: async (args, ctx) => {
+		const res = (await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/qa/rca/${args.side}-${args.variant}`,
 			query: {
@@ -109,5 +109,19 @@ export const getQaRcaTool: ToolDefinition<typeof RcaInput> = {
 				versions: args.versions,
 				type: args.type,
 			},
-		}),
+		})) as { data?: { headline?: { names?: unknown } } } & Record<string, unknown>;
+		// BE inconsistency: trends returns headline.names as a string, pie-chart/table
+		// return it as an array. Normalise to array so callers can iterate uniformly.
+		const names = res?.data?.headline?.names;
+		if (typeof names === 'string') {
+			return {
+				...res,
+				data: {
+					...res.data,
+					headline: { ...res.data?.headline, names: [names] },
+				},
+			};
+		}
+		return res;
+	},
 };

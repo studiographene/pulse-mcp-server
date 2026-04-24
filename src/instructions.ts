@@ -54,7 +54,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		"Returns the current Pulse user's profile (id, name, email, role, organisation). Use at the start of a session to establish identity and permissions, or when the user asks 'who am I' or 'what's my access'. Cheap, safe baseline call.",
 
 	pulse_list_projects:
-		"Lists all Pulse projects visible to the current user. Call when the user hasn't named a project, when you need a project UUID for a downstream call, or when the user asks 'which projects am I on'. Returns id, name, and status; follow with pulse_get_project for details.",
+		"Lists all Pulse projects visible to the current user. Call when the user hasn't named a project, when you need a project UUID for a downstream call, or when the user asks 'which projects am I on'. Returns id, name, startDate, isClient, isMyProject per project. Follow with pulse_get_project for full details.",
 
 	pulse_get_project:
 		'Returns full project details: name, dates, linked GitHub repos, Jira board ids, team, and tool integrations. Use whenever companyId, repoIds, or Jira config are needed, and for setup or integration questions. Most metric tools auto-fetch these fields; call directly when the user is asking about the project itself.',
