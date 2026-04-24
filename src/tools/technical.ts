@@ -70,7 +70,7 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 	inputSchema: TestCoverageInput,
 	handler: async (args, ctx) => {
 		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
-		return ctx.api.request({
+		const res = (await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/test-case-coverage`,
 			query: {
@@ -87,7 +87,20 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 				sortOrder: args.sortOrder,
 				rag: args.rag,
 			},
-		});
+		})) as { statusCode?: number; message?: string; data?: unknown };
+		// When no coverage has been configured for the project, the BE returns a
+		// success envelope with no `data` field. Normalise so callers always see
+		// a `data` key and understand the empty state.
+		if (res && typeof res === 'object' && !('data' in res)) {
+			return {
+				...res,
+				data: null,
+				note:
+					'No test-coverage data for this project. Most likely the repos have no ' +
+					'coverage reports configured. Check the project settings on Pulse.',
+			};
+		}
+		return res;
 	},
 };
 
