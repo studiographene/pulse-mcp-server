@@ -20,7 +20,7 @@
 		"test": "jest --coverage --coverageReporters=json-summary --coverageReporters=lcov --reporters=default --reporters=jest-junit --runInBand --detectOpenHandles",
 		"test:watch": "jest --watch --runInBand",
 		"test:cov": "jest --coverage --runInBand",
-		"validate-branch": "validate-branch-name '^(master|develop){1}$|^(feature|fix|hotfix|release)/[A-Z]{1,}-[0-9]{1,}'"
+		"validate-branch": "validate-branch-name '^(master|develop){1}$|^(feature|feat|fix|hotfix|release)/[A-Z]{1,}-[0-9]{1,}'"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.0.4",
@@ -56,5 +56,14 @@
 	"jest-junit": {
 		"outputDirectory": "coverage",
 		"outputName": "report.xml"
+	},
+	"pnpm": {
+		"overrides": {
+			"uuid": "^14.0.0"
+		}
+	},
+	"validate-branch-name": {
+		"pattern": "^(master|main|develop){1}$|^(feature|feat|fix|hotfix|release)/.+$",
+		"errorMsg": "Branch name must be master, develop, or start with feature/, feat/, fix/, hotfix/, or release/"
 	}
 }
