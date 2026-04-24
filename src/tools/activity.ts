@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { stripAvatarUrls } from './util/compact';
 
 /**
  * Activity endpoints — cross-project / organisation-level views, aggregated per member.
@@ -32,7 +33,7 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 		// don't mistake "intentionally gated to Engineering" for "tool is broken".
 		const projects = res?.data?.projects;
 		if (Array.isArray(projects) && projects.length === 0) {
-			return {
+			return stripAvatarUrls({
 				...res,
 				note:
 					'`projects` is empty. The BE gates this field to Engineering-department ' +
@@ -40,16 +41,19 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 					"If you're in Product Management or another non-engineering department, " +
 					"this is by design — `organisationMembers` still reflects the whole org. " +
 					"For a specific project's data use pulse_list_projects + pulse_get_project.",
-			};
+			});
 		}
-		return res;
+		return stripAvatarUrls(res);
 	},
 };
 
 const OrgMembersInput = z.object({
 	reportsTo: z.string().optional().describe('Filter to members reporting to this userId.'),
 	page: z.number().int().min(1).default(1),
-	limit: z.number().int().min(1).max(100).default(20),
+	// The BE rejects limit < 10 despite the OpenAPI spec saying otherwise
+	// (observed during Cowork v1.3 smoke test, Apr 2026). Enforcing the real
+	// minimum here so the first call never 400s.
+	limit: z.number().int().min(10).max(100).default(20),
 });
 
 export const listOrgMembersTool: ToolDefinition<typeof OrgMembersInput> = {
@@ -57,11 +61,13 @@ export const listOrgMembersTool: ToolDefinition<typeof OrgMembersInput> = {
 	description: 'Org members with rolled-up activity (paginated). (See instructions.ts.)',
 	inputSchema: OrgMembersInput,
 	handler: async (args, ctx) =>
-		ctx.api.request({
-			method: 'GET',
-			path: '/activity/members',
-			query: { reportsTo: args.reportsTo, page: args.page, limit: args.limit },
-		}),
+		stripAvatarUrls(
+			await ctx.api.request({
+				method: 'GET',
+				path: '/activity/members',
+				query: { reportsTo: args.reportsTo, page: args.page, limit: args.limit },
+			})
+		),
 };
 
 const MemberProfileInput = z.object({
@@ -98,7 +104,9 @@ export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 			path: `/activity/profile/${args.userId}`,
 		});
 		// BE returns date fields in DD-MM-YYYY for this endpoint while every other
-		// tool returns ISO. Normalise at the edge so callers see one shape.
-		return normaliseDates(res);
+		// tool returns ISO. Normalise at the edge so callers see one shape. Also
+		// strip avatar URLs (this response embeds the user object and every
+		// reportee).
+		return stripAvatarUrls(normaliseDates(res));
 	},
 };

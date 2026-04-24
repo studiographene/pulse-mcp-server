@@ -14,6 +14,8 @@ import { getProjectContext } from '../utils/project-context';
  *   - `branch` must be an array (not a string) on at least LINES_OF_CODE+type=graph
  *   - PR_WAIT_TIME has no /details endpoint; includeDetails must be rejected for it
  *   - SIZE_OF_PR /details requires page + limit
+ *   - NUMBER_PR_RAISED /details also requires page + limit (BE drift vs spec; observed Apr 2026)
+ *   - NUMBER_COMMENTS_ADDED_TO_PRS /details also requires page + limit (same drift)
  *   - DEPLOYMENT_FREQUENCY only returns tableData (no headline/region)
  */
 
@@ -59,7 +61,8 @@ const DevProcessInput = z.object({
 				'NUMBER_OF_BRANCHES = active branch count, NUMBER_PR_RAISED = PR count, ' +
 				'PR_WAIT_TIME = hours from open to merge (no /details variant), ' +
 				'DEPLOYMENT_FREQUENCY = deploys per period (returns tableData only), ' +
-				'SIZE_OF_PR = lines changed per PR (SIZE_OF_PR+includeDetails needs page+limit).'
+				'SIZE_OF_PR = lines changed per PR. Note: includeDetails=true requires ' +
+					'page+limit for SIZE_OF_PR, NUMBER_PR_RAISED, and NUMBER_COMMENTS_ADDED_TO_PRS.'
 		),
 	range: z.enum(['7 days', '30 days', '1 year']).default('30 days'),
 	repoIds: z
@@ -75,8 +78,18 @@ const DevProcessInput = z.object({
 				'LINES_OF_CODE+type=graph (defaults to ["main"] if omitted).'
 		),
 	companyId: z.string().uuid().optional(),
-	page: z.number().int().min(1).optional().describe('Required for SIZE_OF_PR + includeDetails.'),
-	limit: z.number().int().min(1).optional().describe('Required for SIZE_OF_PR + includeDetails.'),
+	page: z
+		.number()
+		.int()
+		.min(1)
+		.optional()
+		.describe('Required for includeDetails on SIZE_OF_PR, NUMBER_PR_RAISED, and NUMBER_COMMENTS_ADDED_TO_PRS.'),
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.optional()
+		.describe('Required for includeDetails on SIZE_OF_PR, NUMBER_PR_RAISED, and NUMBER_COMMENTS_ADDED_TO_PRS.'),
 	includeDetails: z
 		.boolean()
 		.default(false)
@@ -91,9 +104,13 @@ function validateDevProcessArgs(args: z.infer<typeof DevProcessInput>): void {
 				'DEPLOYMENT_FREQUENCY, SIZE_OF_PR.'
 		);
 	}
-	if (args.category === 'SIZE_OF_PR' && args.includeDetails && (!args.page || !args.limit)) {
+	const requiresPageLimit =
+		args.category === 'SIZE_OF_PR' ||
+		args.category === 'NUMBER_PR_RAISED' ||
+		args.category === 'NUMBER_COMMENTS_ADDED_TO_PRS';
+	if (args.includeDetails && requiresPageLimit && (!args.page || !args.limit)) {
 		throw new Error(
-			'pulse_get_dev_process_metric: SIZE_OF_PR + includeDetails requires page and limit.'
+			`pulse_get_dev_process_metric: includeDetails on ${args.category} requires page and limit.`
 		);
 	}
 }
