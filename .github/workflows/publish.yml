@@ -1,0 +1,79 @@
+name: Publish to npm
+
+# Triggers on a release-please-created GitHub Release (tag vX.Y.Z).
+# The release-please workflow publishes a Release; this workflow picks it up.
+#
+# Registry target is controlled by the PUBLISH_REGISTRY repo variable:
+#   - "github"  → private GitHub Packages (@studiographene scope)
+#   - "public"  → public npmjs.org registry
+#
+# To flip: Repo Settings → Secrets and variables → Actions → Variables →
+#          set PUBLISH_REGISTRY.
+#
+# Required secrets:
+#   - GITHUB_TOKEN (auto-provided, used for GitHub Packages)
+#   - NPM_TOKEN (only needed when PUBLISH_REGISTRY=public; set under Secrets)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (pack only, do not publish)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve registry target
+        id: registry
+        run: |
+          TARGET="${{ vars.PUBLISH_REGISTRY || 'github' }}"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          if [ "$TARGET" = "public" ]; then
+            echo "url=https://registry.npmjs.org" >> "$GITHUB_OUTPUT"
+            echo "scope=" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://npm.pkg.github.com" >> "$GITHUB_OUTPUT"
+            echo "scope=@studiographene" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: ${{ steps.registry.outputs.url }}
+          scope: ${{ steps.registry.outputs.scope }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Publish (dry run)
+        if: ${{ inputs.dry_run == true }}
+        run: pnpm pack
+
+      - name: Publish
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          # Strip "private: true" so npm publish doesn't refuse. We keep it
+          # on main so casual `pnpm publish` from a dev machine is blocked.
+          node -e 'const p=require("./package.json"); delete p.private; require("fs").writeFileSync("package.json", JSON.stringify(p, null, 2));'
+          pnpm publish --no-git-checks --access ${{ steps.registry.outputs.target == 'public' && 'public' || 'restricted' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.registry.outputs.target == 'public' && secrets.NPM_TOKEN || secrets.GITHUB_TOKEN }}
