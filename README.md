@@ -22,6 +22,10 @@ Exposes the Pulse API as a set of MCP tools. When connected to Claude Desktop, C
 
 ## Install
 
+**For end users**: see [INSTALL.md](./INSTALL.md) for the one-time Claude Cowork / Desktop / Code setup (~5 minutes).
+
+**For contributors**:
+
 ```bash
 git clone git@github.com:studiographene/pulse-mcp-server.git
 cd pulse-mcp-server
