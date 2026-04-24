@@ -129,7 +129,9 @@ async function fetchOne(
 			path: `/devex/${projectId}/survey/${type}`,
 			query: { range, customRange },
 		})) as { data?: { score?: number } };
-		return { type, data: res, score: res?.data?.score };
+		// Unwrap the envelope: API returns {statusCode, message, data: {...}}.
+		// We return only the inner data so consumers don't end up with data.data.
+		return { type, data: res?.data ?? res, score: res?.data?.score };
 	} catch (err) {
 		return { type, error: (err as Error).message?.slice(0, 180) ?? String(err) };
 	}
@@ -144,12 +146,12 @@ async function fetchComments(
 	limit: number
 ): Promise<{ comments?: unknown; commentsError?: string }> {
 	try {
-		const res = await api.request({
+		const res = (await api.request({
 			method: 'GET',
 			path: `/devex/${projectId}/survey/${type}/comments`,
 			query: { range, customRange, page: 1, limit },
-		});
-		return { comments: res };
+		})) as { data?: unknown };
+		return { comments: res?.data ?? res };
 	} catch (err) {
 		return { commentsError: (err as Error).message?.slice(0, 180) ?? String(err) };
 	}
