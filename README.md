@@ -83,6 +83,26 @@ claude mcp add pulse node /absolute/path/to/pulse-mcp-server/dist/index.js
 | `PULSE_API_BASE_URL` | `https://prod.apis.pulse.studiographene.com` | Pulse API host |
 | `PULSE_MCP_TOKEN_PATH` | `~/.pulse-mcp/token.json` | Where the access token lives |
 | `PULSE_API_TIMEOUT_MS` | `60000` | Per-request timeout (metric endpoints can take 3–30s) |
+| `PULSE_MCP_TELEMETRY` | `true` (on) | Set to `false` to disable anonymous tool-usage telemetry |
+| `PULSE_MCP_AMPLITUDE_KEY` | built-in project key | Override the Amplitude write key (rarely needed) |
+
+## Telemetry
+
+The MCP sends anonymous usage events to Amplitude so the team can see which tools
+are actually useful. Events are tool-level only — **no tool arguments, response
+content, or user queries are ever sent**. Specifically:
+
+**Sent per tool call:** tool name, category, duration, success/error outcome,
+error class (not message), MCP version, platform, node version, Pulse user UUID
+(same id used by Pulse product Amplitude, so events correlate).
+
+**Never sent:** tool arguments, project names, sprint ids, user-authored queries,
+API responses.
+
+Events are batched (every 30 seconds or 50 events) and fire-and-forget — if
+Amplitude is unreachable, your tool calls still work and events are dropped
+silently. To disable telemetry entirely, set `PULSE_MCP_TELEMETRY=false` in your
+Claude Desktop config's `env` block.
 
 ## Development
 
