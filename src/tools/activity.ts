@@ -24,7 +24,26 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 		'callers get `projects: []` by design. `organisationMembers` is always populated. ' +
 		'(See instructions.ts.)',
 	inputSchema: ActivityOverviewInput,
-	handler: async (_args, ctx) => ctx.api.request({ method: 'GET', path: '/activity' }),
+	handler: async (_args, ctx) => {
+		const res = (await ctx.api.request({ method: 'GET', path: '/activity' })) as {
+			data?: { projects?: unknown[] };
+		} & Record<string, unknown>;
+		// Attach an explicit note when the projects rollup is empty so callers
+		// don't mistake "intentionally gated to Engineering" for "tool is broken".
+		const projects = res?.data?.projects;
+		if (Array.isArray(projects) && projects.length === 0) {
+			return {
+				...res,
+				note:
+					'`projects` is empty. The BE gates this field to Engineering-department ' +
+					'users only (Backend, Frontend, Mobile, Cloud, Artificial Intelligence). ' +
+					"If you're in Product Management or another non-engineering department, " +
+					"this is by design — `organisationMembers` still reflects the whole org. " +
+					"For a specific project's data use pulse_list_projects + pulse_get_project.",
+			};
+		}
+		return res;
+	},
 };
 
 const OrgMembersInput = z.object({
@@ -49,10 +68,37 @@ const MemberProfileInput = z.object({
 	userId: z.string().uuid().describe('Pulse user UUID.'),
 });
 
+/** Rewrite DD-MM-YYYY strings to ISO YYYY-MM-DD; pass everything else through. */
+function dmyToIso(value: unknown): unknown {
+	if (typeof value !== 'string') return value;
+	const m = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+	return m ? `${m[3]}-${m[2]}-${m[1]}` : value;
+}
+
+/** Deep-walk an object/array and convert DD-MM-YYYY date fields to ISO. */
+function normaliseDates(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(normaliseDates);
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value)) {
+			out[k] = /date|Date$/i.test(k) ? dmyToIso(v) : normaliseDates(v);
+		}
+		return out;
+	}
+	return value;
+}
+
 export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 	name: 'pulse_get_member_profile',
 	description: "One member's cross-project metrics. (See instructions.ts.)",
 	inputSchema: MemberProfileInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({ method: 'GET', path: `/activity/profile/${args.userId}` }),
+	handler: async (args, ctx) => {
+		const res = await ctx.api.request({
+			method: 'GET',
+			path: `/activity/profile/${args.userId}`,
+		});
+		// BE returns date fields in DD-MM-YYYY for this endpoint while every other
+		// tool returns ISO. Normalise at the edge so callers see one shape.
+		return normaliseDates(res);
+	},
 };

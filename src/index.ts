@@ -11,48 +11,22 @@ import { zodToJsonSchema as zodToJsonSchemaRaw } from 'zod-to-json-schema';
 import { loadConfig } from './config';
 import { FileTokenStore } from './auth/file-token-store';
 import { PasteTokenProvider } from './auth/paste-token-provider';
+import { userIdFromToken } from './auth/jwt-claims';
 import { PulseApiClient } from './api/client';
 import { tools } from './tools';
 import { ToolContext } from './tools/types';
 import { PULSE_SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS } from './instructions';
+import { buildTelemetry, TelemetryService } from './telemetry';
+import { categoryFor } from './telemetry/tool-category';
+
+const MCP_VERSION = '1.2.0';
 
 // Type-erased wrapper — zod-to-json-schema's deep generic return type causes
 // TS2589 when combined with MCP SDK's schema typing. Erase at the boundary.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const zodToJsonSchema = (schema: any): any => zodToJsonSchemaRaw(schema);
 
-/**
- * Entry point for the Pulse MCP server (v1: local stdio transport).
- *
- * Wires together the concrete v1 implementations:
- *   - FileTokenStore (local file at ~/.pulse-mcp/token.json)
- *   - PasteTokenProvider (reads pasted Pulse access token)
- *   - PulseApiClient (axios wrapper with 419 rotation + 401 refresh)
- *
- * For v2, swap FileTokenStore + PasteTokenProvider for multi-tenant impls,
- * and swap StdioServerTransport for an HTTP/SSE transport. Tool code unchanged.
- */
-async function main(): Promise<void> {
-	const config = loadConfig();
-	const tokenStore = new FileTokenStore(config.tokenFilePath);
-	const authProvider = new PasteTokenProvider(tokenStore);
-	const apiClient = new PulseApiClient({
-		baseUrl: config.pulseApiBaseUrl,
-		auth: authProvider,
-		tokenStore,
-		timeoutMs: config.requestTimeoutMs,
-	});
-
-	const ctx: ToolContext = { api: apiClient };
-
-	const server = new Server(
-		{ name: 'pulse-mcp-server', version: '0.1.0' },
-		{ capabilities: { tools: {} }, instructions: PULSE_SERVER_INSTRUCTIONS }
-	);
-
-	// Warn on boot if any registered tool lacks a description in TOOL_DESCRIPTIONS —
-	// the inline description will be used as a fallback, but this means the central
-	// copy didn't keep up with the code.
+function warnOnMissingDescriptions(): void {
 	for (const t of tools) {
 		if (!TOOL_DESCRIPTIONS[t.name]) {
 			console.error(
@@ -60,7 +34,26 @@ async function main(): Promise<void> {
 			);
 		}
 	}
+}
 
+async function resolveUserId(tokenStore: FileTokenStore): Promise<string | undefined> {
+	try {
+		const token = await tokenStore.get();
+		if (token?.accessToken) {
+			const uid = userIdFromToken(token.accessToken);
+			return uid ?? undefined;
+		}
+	} catch {
+		// No token yet (first run) — events fire with unknown user_id. Non-blocking.
+	}
+	return undefined;
+}
+
+function registerHandlers(
+	server: Server,
+	ctx: ToolContext,
+	telemetry: TelemetryService
+): void {
 	server.setRequestHandler(ListToolsRequestSchema, async () => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const toolList: any[] = tools.map((t) => ({
@@ -75,12 +68,66 @@ async function main(): Promise<void> {
 		const tool = tools.find((t) => t.name === req.params.name);
 		if (!tool) throw new Error(`Unknown tool: ${req.params.name}`);
 		const args = tool.inputSchema.parse(req.params.arguments ?? {});
-		const result = await tool.handler(args, ctx);
-		return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+		const started = Date.now();
+		try {
+			const result = await tool.handler(args, ctx);
+			telemetry.record('pulse_mcp.tool_called', {
+				toolName: tool.name,
+				category: categoryFor(tool.name),
+				durationMs: Date.now() - started,
+				outcome: 'success',
+			});
+			return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+		} catch (err) {
+			telemetry.record('pulse_mcp.tool_called', {
+				toolName: tool.name,
+				category: categoryFor(tool.name),
+				durationMs: Date.now() - started,
+				outcome: 'error',
+				errorClass: (err as Error).constructor?.name ?? 'Error',
+			});
+			throw err;
+		}
 	});
+}
 
-	const transport = new StdioServerTransport();
-	await server.connect(transport);
+/**
+ * Entry point for the Pulse MCP server (v1: local stdio transport).
+ *
+ * Wires together FileTokenStore + PasteTokenProvider + PulseApiClient and the
+ * telemetry pipeline. For v2, swap those for multi-tenant implementations and
+ * swap stdio for HTTP/SSE — tool code stays unchanged.
+ */
+async function main(): Promise<void> {
+	const config = loadConfig();
+	const tokenStore = new FileTokenStore(config.tokenFilePath);
+	const apiClient = new PulseApiClient({
+		baseUrl: config.pulseApiBaseUrl,
+		auth: new PasteTokenProvider(tokenStore),
+		tokenStore,
+		timeoutMs: config.requestTimeoutMs,
+	});
+	const ctx: ToolContext = { api: apiClient };
+
+	const telemetry = buildTelemetry({ mcpVersion: MCP_VERSION });
+	const userId = await resolveUserId(tokenStore);
+	if (userId) telemetry.setUserId(userId);
+
+	const server = new Server(
+		{ name: 'pulse-mcp-server', version: MCP_VERSION },
+		{ capabilities: { tools: {} }, instructions: PULSE_SERVER_INSTRUCTIONS }
+	);
+
+	warnOnMissingDescriptions();
+	registerHandlers(server, ctx, telemetry);
+
+	const shutdown = (): void => {
+		telemetry.shutdown().finally(() => process.exit(0));
+	};
+	process.on('SIGINT', shutdown);
+	process.on('SIGTERM', shutdown);
+
+	await server.connect(new StdioServerTransport());
 }
 
 main().catch((err) => {
