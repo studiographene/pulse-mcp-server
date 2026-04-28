@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
 import { PulseApiClient } from '../api/client';
+import { recentSprintIds } from '../utils/sprint-context';
 import { summariseLongArrays } from './util/compact';
 
 /**
@@ -73,14 +74,6 @@ const CycleTimeInput = z.object({
 		),
 });
 
-interface RawBoardsResponse {
-	data?: {
-		boards: Array<{
-			sprints: Array<{ id: string; startDate: string | null }>;
-		}>;
-	};
-}
-
 /**
  * Pulse returns cycle-time values in MILLISECONDS (confirmed from the Pulse FE,
  * which wraps these in `formatMillisecondsForCycleTime({ milliseconds })`). The
@@ -132,24 +125,6 @@ function sortByDottedKey(
 		const bn = typeof bv === 'number' ? bv : Number.POSITIVE_INFINITY;
 		return (an - bn) * dir;
 	});
-}
-
-async function recentSprintIds(
-	api: PulseApiClient,
-	projectId: string,
-	n: number
-): Promise<string[]> {
-	const raw = (await api.request({
-		method: 'GET',
-		path: `/projects/${projectId}/jira/boards`,
-	})) as RawBoardsResponse;
-	const sprints = (raw?.data?.boards ?? []).flatMap((b) => b.sprints ?? []);
-	sprints.sort((a, b) => {
-		const ad = a.startDate ? Date.parse(a.startDate) : 0;
-		const bd = b.startDate ? Date.parse(b.startDate) : 0;
-		return bd - ad;
-	});
-	return sprints.slice(0, n).map((s) => s.id);
 }
 
 type CycleTimeArgs = z.infer<typeof CycleTimeInput>;

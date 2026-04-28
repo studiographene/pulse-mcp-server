@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { recentSprintIds } from '../utils/sprint-context';
 
 /**
  * QA metrics — 11 endpoints across two clusters.
@@ -43,6 +44,33 @@ const CoreQaInput = z.object({
 		.describe('Only valid for DEFECT_RESOLUTION. Fetches the /details variant.'),
 });
 
+type CoreQaArgs = z.infer<typeof CoreQaInput>;
+
+type QaQuery = Record<string, string | number | boolean | string[] | undefined>;
+
+function buildQaMetricQuery(
+	args: CoreQaArgs,
+	canIncludeDetails: boolean,
+	autoSprints: string[] | undefined
+): QaQuery {
+	if (canIncludeDetails) {
+		return {
+			metric: QA_METRIC,
+			category: args.category,
+			sprintId: args.sprintId,
+			priority: args.priority,
+		};
+	}
+	return {
+		metric: QA_METRIC,
+		category: args.category,
+		sprints: autoSprints ?? args.sprints,
+		versions: args.versions,
+		priority: args.priority,
+		type: args.type,
+	};
+}
+
 export const getQaMetricTool: ToolDefinition<typeof CoreQaInput> = {
 	name: 'pulse_get_qa_metric',
 	description: 'Core QA metric (FTP, reopen, defect resolution). (See instructions.ts.)',
@@ -53,23 +81,25 @@ export const getQaMetricTool: ToolDefinition<typeof CoreQaInput> = {
 		const path = `/projects/${args.projectId}/metrics/qa/${segment}${
 			canIncludeDetails ? '/details' : ''
 		}`;
-		// Details endpoint uses singular sprintId; others use sprints[] / versions[].
-		const query = canIncludeDetails
-			? {
-					metric: QA_METRIC,
-					category: args.category,
-					sprintId: args.sprintId,
-					priority: args.priority,
-				}
-			: {
-					metric: QA_METRIC,
-					category: args.category,
-					sprints: args.sprints,
-					versions: args.versions,
-					priority: args.priority,
-					type: args.type,
-				};
-		return ctx.api.request({ method: 'GET', path, query });
+		// Auto-fill sprints[] when neither sprints nor versions is supplied — the
+		// BE silent-empties otherwise. Default to the 3 most recent sprints,
+		// matching the cycle-time tool's behaviour. Skipped for the DEFECT_RESOLUTION
+		// /details path which uses singular sprintId.
+		const noScope =
+			(!args.sprints || args.sprints.length === 0) &&
+			(!args.versions || args.versions.length === 0);
+		const autoSprints =
+			!canIncludeDetails && noScope
+				? await recentSprintIds(ctx.api, args.projectId, 3)
+				: undefined;
+		const res = await ctx.api.request({
+			method: 'GET',
+			path,
+			query: buildQaMetricQuery(args, canIncludeDetails, autoSprints),
+		});
+		return autoSprints
+			? { ...(res as Record<string, unknown>), _autoFilledSprints: autoSprints }
+			: res;
 	},
 };
 
@@ -101,11 +131,18 @@ export const getQaRcaTool: ToolDefinition<typeof RcaInput> = {
 	description: 'QA Root Cause Analysis: dev/qa side, multiple variants. (See instructions.ts.)',
 	inputSchema: RcaInput,
 	handler: async (args, ctx) => {
+		// Same auto-fill as qa_metric — RCA endpoints silent-empty without scope.
+		const noSprints = !args.sprints || args.sprints.length === 0;
+		const noVersions = !args.versions || args.versions.length === 0;
+		const autoSprints =
+			noSprints && noVersions
+				? await recentSprintIds(ctx.api, args.projectId, 3)
+				: undefined;
 		const res = (await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/qa/rca/${args.side}-${args.variant}`,
 			query: {
-				sprints: args.sprints,
+				sprints: autoSprints ?? args.sprints,
 				versions: args.versions,
 				type: args.type,
 			},
@@ -113,15 +150,18 @@ export const getQaRcaTool: ToolDefinition<typeof RcaInput> = {
 		// BE inconsistency: trends returns headline.names as a string, pie-chart/table
 		// return it as an array. Normalise to array so callers can iterate uniformly.
 		const names = res?.data?.headline?.names;
-		if (typeof names === 'string') {
-			return {
-				...res,
-				data: {
-					...res.data,
-					headline: { ...res.data?.headline, names: [names] },
-				},
-			};
-		}
-		return res;
+		const normalised =
+			typeof names === 'string'
+				? {
+						...res,
+						data: {
+							...res.data,
+							headline: { ...res.data?.headline, names: [names] },
+						},
+					}
+				: res;
+		return autoSprints
+			? { ...(normalised as Record<string, unknown>), _autoFilledSprints: autoSprints }
+			: normalised;
 	},
 };
