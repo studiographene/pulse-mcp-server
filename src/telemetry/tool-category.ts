@@ -36,7 +36,7 @@ const RULES: CategoryRule[] = [
 		matches: (n) =>
 			n.startsWith('pulse_get_activity') ||
 			n === 'pulse_list_org_members' ||
-			n === 'pulse_get_member_profile',
+			n.startsWith('pulse_get_member'),
 		category: 'activity',
 	},
 	{

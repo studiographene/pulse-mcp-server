@@ -21,6 +21,8 @@ import {
 	getActivityOverviewTool,
 	listOrgMembersTool,
 	getMemberProfileTool,
+	getMemberMetricTool,
+	getMemberRcaTool,
 } from './activity';
 import { listFeedbackTool, getFeedbackTool } from './feedback';
 import { getTechAuditTool } from './tech-audit';
@@ -62,6 +64,8 @@ export const tools: AnyToolDefinition[] = [
 	getActivityOverviewTool,
 	listOrgMembersTool,
 	getMemberProfileTool,
+	getMemberMetricTool,
+	getMemberRcaTool,
 	listFeedbackTool,
 	getFeedbackTool,
 	getTechAuditTool,
