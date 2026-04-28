@@ -20,8 +20,25 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
 	}
 }
 
-/** Extract the Pulse user UUID (`sub`) if present, else null. */
+/**
+ * Tokens issued by the Pulse-side MCP-token feature (PX-XXXX) are opaque random
+ * strings prefixed `pulse_mcp_`, not JWTs. We can't extract a userId from them
+ * locally — callers must fall back to a `/users/me` lookup.
+ */
+export const OPAQUE_MCP_TOKEN_PREFIX = 'pulse_mcp_';
+
+/** True if the token is an opaque MCP-token (no claims to decode). */
+export function isOpaqueMcpToken(token: string): boolean {
+	return token.startsWith(OPAQUE_MCP_TOKEN_PREFIX);
+}
+
+/**
+ * Extract the Pulse user UUID (`sub`) from a JWT-shaped Pulse cookie token.
+ * Returns null for opaque MCP tokens or any other non-JWT shape — callers
+ * resolve userId via /users/me in those cases.
+ */
 export function userIdFromToken(token: string): string | null {
+	if (isOpaqueMcpToken(token)) return null;
 	const claims = decodeJwtPayload(token);
 	const sub = claims?.sub;
 	return typeof sub === 'string' ? sub : null;
