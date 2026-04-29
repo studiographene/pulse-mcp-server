@@ -99,8 +99,6 @@ describe('categoryFor', () => {
 		['pulse_list_project_releases', 'jira'],
 		['pulse_apply_project_member_changes', 'write'],
 		['pulse_propose_project_member_changes', 'write'],
-		['pulse_list_feedback', 'feedback'],
-		['pulse_get_feedback', 'feedback'],
 		['pulse_whoami', 'users'],
 		['pulse_find_user', 'users'],
 		['pulse_list_users', 'users'],
