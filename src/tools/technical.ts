@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
 import { resolveRepoIds } from '../utils/project-context';
+import { summariseLongArrays } from './util/compact';
 
 /**
  * Technical Success Criteria (TSC) metrics — product security, page-speed scans,
@@ -70,35 +71,46 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 	inputSchema: TestCoverageInput,
 	handler: async (args, ctx) => {
 		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
-		const res = (await ctx.api.request({
-			method: 'GET',
-			path: `/projects/${args.projectId}/metrics/tsc/test-case-coverage`,
-			query: {
-				metric: TSC_METRIC,
-				category: 'TEST_CASE_COVERAGE',
-				branch: args.branch,
-				range: args.range,
-				repoIds,
-				search: args.search,
-				page: args.page,
-				limit: args.limit,
-				type: args.type,
-				sortKey: args.sortKey,
-				sortOrder: args.sortOrder,
-				rag: args.rag,
-			},
-		})) as { statusCode?: number; message?: string; data?: unknown };
+		const notConfiguredNote =
+			'No test-coverage data for this project. Most likely the repos have no ' +
+			'coverage reports configured. Check the project settings on Pulse.';
+		let res: { statusCode?: number; message?: string; data?: unknown };
+		try {
+			res = (await ctx.api.request({
+				method: 'GET',
+				path: `/projects/${args.projectId}/metrics/tsc/test-case-coverage`,
+				query: {
+					metric: TSC_METRIC,
+					category: 'TEST_CASE_COVERAGE',
+					branch: args.branch,
+					range: args.range,
+					repoIds,
+					search: args.search,
+					page: args.page,
+					limit: args.limit,
+					type: args.type,
+					sortKey: args.sortKey,
+					sortOrder: args.sortOrder,
+					rag: args.rag,
+				},
+			})) as { statusCode?: number; message?: string; data?: unknown };
+		} catch (err) {
+			// The BE returns 404 "Table data not found" when a project has no
+			// coverage reports ingested for the selected variant (e.g. table view
+			// on a project that only has graph data, or no coverage at all).
+			// Surface that as a graceful empty rather than an error so callers
+			// can distinguish "not configured" from "real failure".
+			const msg = (err as Error)?.message ?? '';
+			if (/404/.test(msg) && /Table data not found/i.test(msg)) {
+				return { statusCode: 200, data: null, note: notConfiguredNote };
+			}
+			throw err;
+		}
 		// When no coverage has been configured for the project, the BE returns a
 		// success envelope with no `data` field. Normalise so callers always see
 		// a `data` key and understand the empty state.
 		if (res && typeof res === 'object' && !('data' in res)) {
-			return {
-				...res,
-				data: null,
-				note:
-					'No test-coverage data for this project. Most likely the repos have no ' +
-					'coverage reports configured. Check the project settings on Pulse.',
-			};
+			return { ...res, data: null, note: notConfiguredNote };
 		}
 		return res;
 	},
@@ -107,6 +119,15 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 const VersionUpgradesInput = TscBaseInput.extend({
 	includeDetails: z.boolean().default(false),
 	apiVersion: z.enum(['default', 'v1', 'v2']).default('v2'),
+	responseFormat: z
+		.enum(['summary', 'full'])
+		.default('summary')
+		.describe(
+			'Details variant only. Default "summary" collapses long dependency lists into ' +
+				'{ count, sample, truncated } — version_upgrades/details easily exceeds LLM ' +
+				'token budgets even with small `limit`. Use "full" when you explicitly need ' +
+				'every dependency enumerated.'
+		),
 });
 
 export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput> = {
@@ -117,7 +138,7 @@ export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput>
 		const prefixMap: Record<string, string> = { default: '', v1: '/v1', v2: '/v2' };
 		const prefix = prefixMap[args.apiVersion];
 		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
-		return ctx.api.request({
+		const raw = await ctx.api.request({
 			method: 'GET',
 			path: `${prefix}/projects/${args.projectId}/metrics/tsc/version-upgrades${
 				args.includeDetails ? '/details' : ''
@@ -137,6 +158,10 @@ export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput>
 				rag: args.rag,
 			},
 		});
+		// Only summarise the /details shape; the summary shape is already dense.
+		return args.includeDetails && args.responseFormat !== 'full'
+			? summariseLongArrays(raw)
+			: raw;
 	},
 };
 
