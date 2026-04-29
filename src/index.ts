@@ -19,7 +19,7 @@ import { PULSE_SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS } from './instructions';
 import { buildTelemetry, TelemetryService } from './telemetry';
 import { categoryFor } from './telemetry/tool-category';
 
-const MCP_VERSION = '1.2.0';
+const MCP_VERSION = '1.3.0';
 
 // Type-erased wrapper — zod-to-json-schema's deep generic return type causes
 // TS2589 when combined with MCP SDK's schema typing. Erase at the boundary.
@@ -36,17 +36,39 @@ function warnOnMissingDescriptions(): void {
 	}
 }
 
-async function resolveUserId(tokenStore: FileTokenStore): Promise<string | undefined> {
+/**
+ * Resolve the Pulse user UUID for telemetry correlation.
+ *
+ * Two paths:
+ *   - Cookie/JWT tokens (legacy): decode the `sub` claim locally — instant, no I/O.
+ *   - Opaque MCP tokens (`pulse_mcp_*`, post token-feature): no claims to decode;
+ *     call `/users/me` to get the user. One extra request at startup.
+ *
+ * Both paths are best-effort. If userId can't be resolved, telemetry events
+ * fire with an unknown user — non-blocking, never crashes the server.
+ */
+async function resolveUserId(
+	tokenStore: FileTokenStore,
+	apiClient: PulseApiClient
+): Promise<string | undefined> {
 	try {
 		const token = await tokenStore.get();
-		if (token?.accessToken) {
-			const uid = userIdFromToken(token.accessToken);
-			return uid ?? undefined;
+		if (!token?.accessToken) return undefined;
+		const fromJwt = userIdFromToken(token.accessToken);
+		if (fromJwt) return fromJwt;
+		// Opaque MCP token (or unknown shape) — fall back to /users/me.
+		try {
+			const me = (await apiClient.request({
+				method: 'GET',
+				path: '/users/me',
+			})) as { data?: { id?: string }; id?: string };
+			return me?.data?.id ?? me?.id ?? undefined;
+		} catch {
+			return undefined;
 		}
 	} catch {
-		// No token yet (first run) — events fire with unknown user_id. Non-blocking.
+		return undefined;
 	}
-	return undefined;
 }
 
 function registerHandlers(
@@ -110,7 +132,7 @@ async function main(): Promise<void> {
 	const ctx: ToolContext = { api: apiClient };
 
 	const telemetry = buildTelemetry({ mcpVersion: MCP_VERSION });
-	const userId = await resolveUserId(tokenStore);
+	const userId = await resolveUserId(tokenStore, apiClient);
 	if (userId) telemetry.setUserId(userId);
 
 	const server = new Server(
