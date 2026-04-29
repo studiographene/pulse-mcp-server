@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { stripAvatarUrls } from './util/compact';
 
 /**
  * User-directory tools. Wrap:
@@ -35,7 +36,8 @@ export const whoamiTool: ToolDefinition<typeof WhoAmIInput> = {
 	name: 'pulse_whoami',
 	description: 'Return the current Pulse user. (See instructions.ts.)',
 	inputSchema: WhoAmIInput,
-	handler: async (_args, ctx) => ctx.api.request({ method: 'GET', path: '/users/me' }),
+	handler: async (_args, ctx) =>
+		stripAvatarUrls(await ctx.api.request({ method: 'GET', path: '/users/me' })),
 };
 
 const ListUsersInput = z.object({
@@ -76,7 +78,7 @@ export const listUsersTool: ToolDefinition<typeof ListUsersInput> = {
 			limit: args.limit,
 			total: all.length,
 			totalPages: Math.max(1, Math.ceil(all.length / args.limit)),
-			users: all.slice(start, end),
+			users: stripAvatarUrls(all.slice(start, end)),
 		};
 	},
 };
@@ -116,6 +118,6 @@ export const findUserTool: ToolDefinition<typeof FindUserInput> = {
 		const matches = all
 			.filter((u) => fullName(u).toLowerCase().includes(q))
 			.slice(0, args.limit);
-		return { query: args.query, matchCount: matches.length, matches };
+		return { query: args.query, matchCount: matches.length, matches: stripAvatarUrls(matches) };
 	},
 };

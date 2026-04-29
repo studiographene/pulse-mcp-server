@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
 import { PulseApiClient } from '../api/client';
+import { summariseLongArrays } from './util/compact';
 
 /**
  * Cycle time — 3 variants across 3 endpoints with different param contracts:
@@ -62,6 +63,14 @@ const CycleTimeInput = z.object({
 				"(returns 500 for any value), so the tool sorts the returned array client-side."
 		),
 	sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
+	responseFormat: z
+		.enum(['summary', 'full'])
+		.default('summary')
+		.describe(
+			'Details variant only. Default "summary" collapses the per-ticket rows (often 200+) ' +
+				'into { count, sample, truncated } to stay within LLM token budgets. Use "full" ' +
+				'when you explicitly need every ticket.'
+		),
 });
 
 interface RawBoardsResponse {
@@ -166,15 +175,16 @@ async function handleDetails(
 		query: { sprint, version: args.version },
 	})) as { data?: unknown } & Record<string, unknown>;
 
+	let out = res;
 	if (args.sortKey && Array.isArray(res?.data)) {
 		const sorted = sortByDottedKey(
 			res.data as Array<Record<string, unknown>>,
 			args.sortKey,
 			args.sortOrder
 		);
-		return { ...res, data: sorted };
+		out = { ...res, data: sorted };
 	}
-	return res;
+	return args.responseFormat === 'full' ? out : summariseLongArrays(out);
 }
 
 export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {
