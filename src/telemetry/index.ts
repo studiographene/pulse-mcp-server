@@ -16,12 +16,9 @@ export { AmplitudeSink } from './amplitude-sink';
  * NOTE: Amplitude write keys are NOT secret — they identify a project, not a
  * user. The Pulse FE already embeds this same key in its shipped JS bundle.
  *
- * TODO: populate with the prod Pulse Amplitude write key. Grab from:
- *   https://app.amplitude.com/analytics/pulsesg/settings/projects/676295/general
- *   → "API Keys" → copy the write key (NOT the secret key)
- *
- * Project: Pulse (appId 676295, org pulsesg). Until set, telemetry no-ops
- * silently (sink is null, no events leave the process).
+ * If empty, telemetry no-ops silently (sink is null, no events leave the
+ * process). Override at runtime via the PULSE_MCP_AMPLITUDE_KEY env var; that
+ * is the supported path for downstream forks pointing at their own project.
  */
 const DEFAULT_AMPLITUDE_KEY = '34995e36a1a732986c298d765556ae85';
 
