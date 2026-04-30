@@ -43,3 +43,8 @@ pnpm-debug.log*
 # One-off smoke test scripts (not committed; use pnpm dev / pnpm test for proper suites)
 scripts/
 
+# Audit reports (sensitive: contain history-leak indices). Live in Confluence
+# instead, with the page restricted to SG members.
+audit-findings*.md
+audit-*.md
+
