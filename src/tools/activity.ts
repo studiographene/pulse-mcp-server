@@ -9,10 +9,9 @@ import { stripAvatarUrls } from './util/compact';
  * OpenAPI spec marking them optional. We enforce defaults here so the tool always works.
  *
  * Note on get_activity_overview: the BE intentionally returns `projects: []` for
- * non-Engineering users. The `projects` rollup is gated to departments in
- * {engineering-department list}. The
- * `organisationMembers` block is returned for everyone. This is by design — a
- * Product Manager calling the tool will see members but not the project rollup.
+ * non-engineering users. The `projects` rollup is gated to engineering-department
+ * users; the `organisationMembers` block is returned for everyone. This is by
+ * design — a non-engineering caller will see members but not the project rollup.
  */
 
 const ActivityOverviewInput = z.object({});
@@ -36,11 +35,10 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 			return stripAvatarUrls({
 				...res,
 				note:
-					'`projects` is empty. The BE gates this field to Engineering-department ' +
-					'users only (engineering-department list). ' +
-					"If you're in Product Management or another non-engineering department, " +
-					"this is by design — `organisationMembers` still reflects the whole org. " +
-					"For a specific project's data use pulse_list_projects + pulse_get_project.",
+					'`projects` is empty. The BE gates this field to engineering-department ' +
+					'users only; non-engineering callers see this empty array by design — ' +
+					'`organisationMembers` still reflects the whole org. For a specific ' +
+					"project's data use pulse_list_projects + pulse_get_project.",
 			});
 		}
 		return stripAvatarUrls(res);
@@ -116,8 +114,8 @@ export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
  *
  * The BE exposes 8 individual-scoped metric endpoints (code-commit, pr,
  * pr-comments + details, ftp, line-of-code, rca + details + trends) that
- * answer questions like "what's [person]'s FTP rate" or "how many commits has
- * [person] made this month". We unify them into two tools to keep the surface
+ * answer questions like "what's their FTP rate" or "how many commits have
+ * they made this month". We unify them into two tools to keep the surface
  * tight, mirroring the `pulse_get_dev_process_metric` pattern:
  *
  *   - pulse_get_member_metric     — code-commit / pr / pr-comments / ftp /

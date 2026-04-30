@@ -66,7 +66,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		'Lists all users the caller can see (admin view). Use sparingly, mostly for admin access audits or to locate users who are not yet on any project. For lookups by name or email, prefer pulse_find_user.',
 
 	pulse_find_user:
-		"Case-insensitive substring search over names and emails; returns user UUIDs. Use this first whenever the user names a person ('[person]'s metrics', 'add [person] to the project'). Much faster than paging pulse_list_users.",
+		"Case-insensitive substring search over names and emails; returns user UUIDs. Use this first whenever the user names a person (e.g. 'their metrics', 'add the new joiner to the project'). Much faster than paging pulse_list_users.",
 
 	// Dev Process
 	pulse_get_dev_process_metric:
@@ -133,7 +133,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		"One person's metrics across every project they belong to. Use when the user asks about a specific engineer's output, quality, or engagement. Chain with pulse_find_user to resolve the user id from a name or email first.",
 
 	pulse_get_member_metric:
-		"One person's per-metric activity across the categories CODE_COMMIT, PR, PR_COMMENTS, FTP, and LINE_OF_CODE. Use this for individual-level questions like 'what's [person]'s FTP rate' or 'how many commits has [person] made this month' — anything per-engineer that isn't covered by pulse_get_member_profile's high-level view. Always resolve the person via pulse_find_user first to get the userId. The tool auto-fetches the member's repos and projects from their profile when scope params are omitted: repo-scoped categories (CODE_COMMIT, PR, PR_COMMENTS, LINE_OF_CODE) need repoIds[]; project-scoped (FTP) needs projectIds[]. PR_COMMENTS + includeDetails=true returns per-PR breakdowns and additionally requires page + limit. If you ever see an empty success response, double-check that userId resolved correctly — repo-scoped endpoints silently return no `data` when scope params don't match.",
+		"One person's per-metric activity across the categories CODE_COMMIT, PR, PR_COMMENTS, FTP, and LINE_OF_CODE. Use this for individual-level questions like 'what's their FTP rate' or 'how many commits have they made this month' — anything per-engineer that isn't covered by pulse_get_member_profile's high-level view. Always resolve the person via pulse_find_user first to get the userId. The tool auto-fetches the member's repos and projects from their profile when scope params are omitted: repo-scoped categories (CODE_COMMIT, PR, PR_COMMENTS, LINE_OF_CODE) need repoIds[]; project-scoped (FTP) needs projectIds[]. PR_COMMENTS + includeDetails=true returns per-PR breakdowns and additionally requires page + limit. If you ever see an empty success response, double-check that userId resolved correctly — repo-scoped endpoints silently return no `data` when scope params don't match.",
 
 	pulse_get_member_rca:
 		"One person's Root Cause Analysis: which defect categories ('Inadequate Unit testing', 'Requirement Understanding gap', etc.) their bugs cluster in. Three variants: overview (aggregate counts), details (per-bug breakdown), trends (time-series for a single category — requires `category`). projectIds[] is required; auto-fetched from the member profile when userId is supplied. Use after a low FTP signal from pulse_get_member_metric to surface the systemic causes worth coaching on.",
