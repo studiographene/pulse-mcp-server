@@ -1,12 +1,37 @@
 {
-	"name": "pulse-mcp-server",
+	"name": "@studiographene/pulse-mcp",
 	"version": "1.3.0",
-	"description": "MCP server for Pulse APIs — query Pulse data from Claude and other AI tools",
-	"private": true,
-	"license": "UNLICENSED",
+	"description": "MCP server for Pulse APIs — query Pulse data from Claude and other MCP-compatible AI tools",
+	"license": "MIT",
 	"main": "dist/index.js",
 	"bin": {
-		"pulse-mcp-server": "dist/index.js"
+		"pulse-mcp": "dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"INSTALL.md",
+		"SECURITY.md",
+		"LICENSE"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/studiographene/pulse-mcp-server.git"
+	},
+	"homepage": "https://github.com/studiographene/pulse-mcp-server#readme",
+	"bugs": {
+		"url": "https://github.com/studiographene/pulse-mcp-server/issues"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"claude",
+		"pulse",
+		"engineering-metrics",
+		"studio-graphene"
+	],
+	"publishConfig": {
+		"access": "public"
 	},
 	"scripts": {
 		"prepare": "husky install",

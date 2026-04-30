@@ -9,7 +9,7 @@ describe('stripAvatarUrls', () => {
 	it('drops profilePic / avatarUrl / photoUrl at any depth', () => {
 		const input = {
 			id: 'u1',
-			name: 'Peter',
+			name: 'Test User',
 			profilePic: 'https://cloudinary/...',
 			reports: [
 				{ id: 'u2', avatarUrl: 'https://cloudinary/...', name: 'A' },
@@ -20,7 +20,7 @@ describe('stripAvatarUrls', () => {
 		const out = stripAvatarUrls(input);
 		expect(out).toEqual({
 			id: 'u1',
-			name: 'Peter',
+			name: 'Test User',
 			reports: [
 				{ id: 'u2', name: 'A' },
 				{ id: 'u3', name: 'B' },
