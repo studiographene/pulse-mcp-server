@@ -131,6 +131,12 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 	pulse_get_member_profile:
 		"One person's metrics across every project they belong to. Use when the user asks about a specific engineer's output, quality, or engagement. Chain with pulse_find_user to resolve the user id from a name or email first.",
 
+	pulse_get_member_metric:
+		"One person's per-metric activity across the categories CODE_COMMIT, PR, PR_COMMENTS, FTP, and LINE_OF_CODE. Use this for individual-level questions like 'what's [person]'s FTP rate' or 'how many commits has [person] made this month' — anything per-engineer that isn't covered by pulse_get_member_profile's high-level view. Always resolve the person via pulse_find_user first to get the userId. FTP requires projectIds[] (auto-fetched from the member's profile if omitted). PR_COMMENTS + includeDetails=true returns per-PR breakdowns and additionally requires page + limit.",
+
+	pulse_get_member_rca:
+		"One person's Root Cause Analysis: which defect categories ('Inadequate Unit testing', 'Requirement Understanding gap', etc.) their bugs cluster in. Three variants: overview (aggregate counts), details (per-bug breakdown), trends (time-series for a single category — requires `category`). projectIds[] is required; auto-fetched from the member profile when userId is supplied. Use after a low FTP signal from pulse_get_member_metric to surface the systemic causes worth coaching on.",
+
 	// Feedback
 	pulse_list_feedback:
 		"Paginated list of Pulse feedback items (user submissions about the platform). Use when the user asks 'what feedback are we getting on Pulse' or wants to triage reports. Defaults to page 1 and limit 20.",
