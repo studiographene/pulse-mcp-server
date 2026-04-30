@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { recentSprintIds } from '../utils/sprint-context';
 
 /**
  * PM metrics — 3 clusters: headline PM, estimates-vs-actuals, work-breakdown (graph/trends).
@@ -71,20 +72,29 @@ export const getEstimatesVsActualsTool: ToolDefinition<typeof EstimatesVsActuals
 	name: 'pulse_get_estimates_vs_actuals',
 	description: 'Per-ticket estimates vs actuals, sprint-scoped. (See instructions.ts.)',
 	inputSchema: EstimatesVsActualsInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
+	handler: async (args, ctx) => {
+		// Auto-fill the most-recent sprint if the caller didn't pick one.
+		// BE returns empty when sprint is missing; FE always supplies via UI.
+		const autoSprint = !args.sprint
+			? (await recentSprintIds(ctx.api, args.projectId, 1))[0]
+			: undefined;
+		const res = await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/pm/estimates-vs-actuals${
 				args.v2 ? '/v2' : ''
 			}`,
 			query: {
-				sprint: args.sprint,
+				sprint: autoSprint ?? args.sprint,
 				sortKey: args.sortKey,
 				sortOrder: args.sortOrder,
 				sprintState: args.sprintState,
 				versionState: args.versionState,
 			},
-		}),
+		});
+		return autoSprint
+			? { ...(res as Record<string, unknown>), _autoFilledSprint: autoSprint }
+			: res;
+	},
 };
 
 

@@ -42,7 +42,7 @@ Defaults. Last 3 sprints for sprint-scoped metrics, last 30 days for date-range 
 
 Project scoping. If the user names a project, resolve it via pulse_list_projects or pulse_find_user. Otherwise infer from conversation context, and only ask when genuinely ambiguous. For individual-focused questions, resolve the person via pulse_find_user first.
 
-Sprint-scoped metrics (QA, estimates-vs-actuals, per-ticket cycle-time details) return empty without a sprint or version filter. Call pulse_list_project_sprints first and pass the 3 most recent, or pulse_list_project_releases for version-based views. Empty responses are usually a filter issue, not a real zero, so verify filters before reporting "no data".
+Sprint-scoped metrics (QA, estimates-vs-actuals, QA RCA, per-ticket cycle-time details) return empty without a sprint or version filter. The MCP auto-fills the 3 most recent sprints (or 1 for singular-sprint endpoints) when neither sprints nor versions is supplied, and surfaces the chosen ids back as _autoFilledSprints (or _autoFilledSprint) in the response so you can name them when you answer. To target a specific window, call pulse_list_project_sprints first and pass the ids explicitly, or use pulse_list_project_releases for version-based views.
 
 Write safety. For member changes, always call pulse_propose_project_member_changes first, show the full diff (additions, removals, resulting member list), and only call pulse_apply_project_member_changes after a clear affirmative from the user ("yes apply", "go ahead", "do it"). Treat hedged language ("looks fine", "I guess", silence) as not-yet-confirmed.
 
