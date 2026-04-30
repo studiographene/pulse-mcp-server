@@ -1,6 +1,6 @@
 {
 	"name": "pulse-mcp-server",
-	"version": "1.2.0",
+	"version": "1.3.0",
 	"description": "MCP server for Pulse APIs — query Pulse data from Claude and other AI tools",
 	"private": true,
 	"license": "UNLICENSED",
