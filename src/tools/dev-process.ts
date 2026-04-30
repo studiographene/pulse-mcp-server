@@ -74,8 +74,11 @@ const DevProcessInput = z.object({
 		.array(z.string())
 		.optional()
 		.describe(
-			'Branch names to filter by. BE requires array form with >=1 element for ' +
-				'LINES_OF_CODE+type=graph (defaults to ["main"] if omitted).'
+			'Branch names to filter by. The BE rejects empty `branch[]` for several ' +
+				'categories (CODE_COMMIT_FREQUENCY, PR_WAIT_TIME, NUMBER_PR_RAISED, ' +
+				'NUMBER_COMMENTS_ADDED_TO_PRS, LINES_OF_CODE+graph). The tool defaults ' +
+				'to ["main"] when omitted; pass explicitly only when the project uses ' +
+				'a non-main default branch.'
 		),
 	companyId: z.string().uuid().optional(),
 	page: z
@@ -129,9 +132,13 @@ export const getDevProcessMetricTool: ToolDefinition<typeof DevProcessInput> = {
 			args.includeDetails ? '/details' : ''
 		}`;
 		const repoIds = args.repoIds && args.repoIds.length > 0 ? args.repoIds : projectCtx.repoIds;
-		// BE requires non-empty branch[] for LINES_OF_CODE+graph. Default to ['main'] for safety.
-		const needsBranch = args.category === 'LINES_OF_CODE' && args.type === 'graph';
-		const branch = needsBranch && !args.branch?.length ? ['main'] : args.branch;
+		// BE rejects an empty / missing `branch[]` ("must contain at least 1 elements")
+		// for at least: CODE_COMMIT_FREQUENCY, PR_WAIT_TIME, NUMBER_PR_RAISED,
+		// NUMBER_COMMENTS_ADDED_TO_PRS, and LINES_OF_CODE+graph. The other
+		// categories accept it without complaint. Always default to ['main'] when
+		// the caller doesn't supply one — overrideable when a project's default
+		// branch differs.
+		const branch = args.branch && args.branch.length > 0 ? args.branch : ['main'];
 		return ctx.api.request({
 			method: 'GET',
 			path,
