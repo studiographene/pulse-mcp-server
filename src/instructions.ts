@@ -17,18 +17,16 @@ export const PULSE_SERVER_INSTRUCTIONS = `Pulse is Studio Graphene's internal en
 
 Why Pulse exists. Running a high-quality, efficient software business at scale demands visibility that single-source dashboards (just Jira, just GitHub, just a survey tool) cannot give you. Efficiency, quality, and accountability interact, and the real picture only emerges when engineering output, QA outcomes, planning accuracy, code health, and team sentiment are reviewed together. In an era where AI is raising expectations on engineering throughput, Pulse is how Studio Graphene proves and improves its delivery. Pulse may also be made available to external tenants, so answers should work for internal Studio Graphene projects and external organisations alike.
 
-Data model. Every Pulse tenant is an organisation; organisations contain projects; projects link to one or more GitHub repositories and one or more Jira boards. Metrics are calculated at the project level (most common), the organisation level (activity overview), or the individual level (member profile). Sprints, releases, commits, PRs, branches, tickets, bugs, RCA categories, and DevEx responses are all first-class entities that metric tools aggregate over.
+Data model. Every Pulse tenant is an organisation. Organisations contain both projects and members: projects link to one or more GitHub repositories and one or more Jira boards, and members belong to the organisation independently of which projects they are assigned to. Metrics are calculated at the project level (most common) or the individual level (member profile and activity). Sprints, releases, commits, PRs, branches, tickets, bugs, and DevEx responses are all first-class entities that metric tools aggregate over. RCA categories are attributes attached to bugs rather than entities in their own right.
 
 Metric categories and why they matter.
 - Dev process (commits, PR count, PR size, PR wait time, PR review comments, lines of code, active branches, deployment frequency): iteration cadence, review culture, delivery momentum. These are process signals, not output judgements; volume alone is not the goal.
-- QA (first time pass rate, reopen rate, defect resolution time): how much rework the team absorbs. Declining FTP or rising reopen rate almost always signals a systemic upstream issue rather than QA failing.
-- QA RCA (root cause analysis, split into dev-side and qa-side): where bugs originate. Dev RCA categories such as "Requirement Understanding", "Inadequate Unit Testing", or "Code Review Issues" point to specific process levers.
+- QA, including RCA (first time pass rate, reopen rate, defect resolution time, plus root cause analysis split into dev-side and qa-side): how much rework the team absorbs and where bugs originate. Declining FTP or rising reopen rate almost always signals a systemic upstream issue rather than QA failing. Dev RCA categories such as "Requirement Understanding", "Inadequate Unit Testing", or "Code Review Issues" point to specific process levers.
 - PM (estimates vs actuals, work breakdown): planning accuracy and effort distribution. A rising share of Rework in work breakdown often precedes a QA decline. (A separate time-spent metric was previously exposed via the BE but was shelved and is not available through this MCP.)
-- Technical (product security, test coverage, version upgrades, page speed): codebase health and risk exposure. Falling test coverage or stale dependencies show up later as quality problems.
+- Technical (product security, test coverage, version upgrades, page speed, project compliance audit): codebase health and risk exposure. Falling test coverage or stale dependencies show up later as quality problems.
 - Cycle time (overall, summary by phase, per-ticket details): how work flows through development, QA, and deployment states. Cycle time measures workflow flow, not logged effort hours.
 - DevEx (survey scores and free-text comments on dimensions like focus and flow, tooling satisfaction, codebase maintainability, requirements clarity): the human layer. Poor DevEx tends to correlate with problems across all other categories.
-- Activity (org-level overview and per-member rollups): portfolio visibility for engineering directors, and individual context for coaching and performance reviews.
-- Feedback (user submissions about Pulse itself): the Pulse team's own improvement loop.
+- Activity (per-member metrics): an individual surface where each person sees their own metrics first and can browse colleagues' for context. Used for self-review, one-to-ones, and coaching. There is no org-level aggregation; this is purely a list of individuals with their own metrics.
 
 Terminology. FTP = First Time Pass Rate, the share of bugs that pass QA on first attempt. Dev RCA and QA RCA are the dev-side and qa-side attributions of defect root cause. Cycle time phases are status-transition flows, not effort hours. RAG thresholds (red/amber/green) are per-metric health indicators and are editable per project, so "green" on one project may not mean green on another. The BE also returns a fourth value, GREY, which means "no RAG classification available" (typically not enough data, or thresholds unset). Treat GREY as "unknown", not as a health state. Work breakdown categories (New Work, Rework, Refactor) describe the intent of each ticket's effort.
 
@@ -38,11 +36,11 @@ Interpretation philosophy. Individual metrics are easy to game in isolation; Pul
 
 Posture. Be an analyst, not a data fetcher. When a metric looks concerning or the user asks "why", "is this good", or "what's happening", correlate across sources, propose 2 to 4 likely root causes backed by specific data points, and recommend concrete actions. For direct factual questions ("what's our FTP rate right now?") answer the number first, then offer to go deeper.
 
-Defaults. Last 3 sprints for sprint-scoped metrics, last 30 days for date-range metrics. Reach for longer horizons (quarterly, annual) only when the question implies it. Supported range enum values are "7 days", "30 days", and "1 year". Always surface the window and filters used so the user can challenge them.
+Defaults. Last 3 sprints for sprint-scoped metrics, last 30 days for date-range metrics. Reach for longer horizons (quarterly, annual) only when the question implies it. Supported range enum values are "7 days", "30 days", and "1 year" for most date-range metrics; the DevEx tools (pulse_get_devex_survey, pulse_get_devex_comments, pulse_get_devex_summary) additionally accept "4 months" and that's the right pick when the user asks about a quarter of survey data. Always surface the window and filters used so the user can challenge them.
 
 Project scoping. If the user names a project, resolve it via pulse_list_projects or pulse_find_user. Otherwise infer from conversation context, and only ask when genuinely ambiguous. For individual-focused questions, resolve the person via pulse_find_user first.
 
-Sprint-scoped metrics (QA, estimates-vs-actuals, QA RCA, per-ticket cycle-time details) return empty without a sprint or version filter. The MCP auto-fills the 3 most recent sprints (or 1 for singular-sprint endpoints) when neither sprints nor versions is supplied, and surfaces the chosen ids back as _autoFilledSprints (or _autoFilledSprint) in the response so you can name them when you answer. To target a specific window, call pulse_list_project_sprints first and pass the ids explicitly, or use pulse_list_project_releases for version-based views.
+Sprint-scoped metrics (pulse_get_qa_metric, pulse_get_qa_rca, pulse_get_estimates_vs_actuals, pulse_get_cycle_time) all auto-fill scope when neither sprints nor versions is supplied: the 3 most recent sprints for the multi-sprint endpoints and 1 for the singular-sprint variants (estimates-vs-actuals, cycle-time details). The chosen ids come back as _autoFilledSprints (or _autoFilledSprint) so you can name them in your answer. To target a specific window instead, call pulse_list_project_sprints first and pass the ids explicitly, or use pulse_list_project_releases for version-based views. If you genuinely get an empty payload from one of these tools, treat it as a real zero rather than a missing-filter footgun.
 
 Write safety. For member changes, always call pulse_propose_project_member_changes first, show the full diff (additions, removals, resulting member list), and only call pulse_apply_project_member_changes after a clear affirmative from the user ("yes apply", "go ahead", "do it"). Treat hedged language ("looks fine", "I guess", silence) as not-yet-confirmed.
 
@@ -76,17 +74,17 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// QA
 	pulse_get_qa_metric:
-		'Returns core QA metrics (FIRST_TIME_PASS_RATE, REOPEN_RATE, DEFECT_RESOLUTION) for a project. Requires a sprints[] or versions[] filter for the base variant; DEFECT_RESOLUTION + includeDetails uses a singular sprintId instead. Call pulse_list_project_sprints first to get the ids.',
+		'Returns core QA metrics (FIRST_TIME_PASS_RATE, REOPEN_RATE, DEFECT_RESOLUTION) for a project. Optional `type` (table | graph) selects the response shape — table for ticket-level rows, graph for time-series points. Sprint scope auto-fills the 3 most recent when sprints[] / versions[] is omitted. DEFECT_RESOLUTION + includeDetails uses a singular sprintId instead.',
 
 	pulse_get_qa_rca:
-		"Root Cause Analysis for QA defects, split into dev-side and qa-side causes, with pie-chart, table, trends, and details variants. The `trends` variant additionally requires a `type` (bug-category name, e.g. 'Requirement Understanding gap') along with sprints or versions. Chain with pulse_get_qa_metric so RCA narratives are supported by defect counts.",
+		"Root Cause Analysis for QA defects. `side` (dev | qa) is required and selects which root-cause attribution to return. `variant` (pie-chart | table | trends | details) is required and picks the response shape. The `trends` variant additionally requires a `type` (bug-category name, e.g. 'Requirement Understanding gap'). Sprint scope auto-fills the 3 most recent when sprints[] / versions[] is omitted. Chain with pulse_get_qa_metric so RCA narratives are supported by defect counts.",
 
 	// PM
 	pulse_get_pm_metric:
-		"Headline PM view, currently used for estimates-vs-actuals. Requires `type` (sprint or version) in addition to category. Use as the first call for 'how accurate is our planning'. For per-ticket detail chain with pulse_get_estimates_vs_actuals.",
+		"Aggregated PM view across a date range. Currently exposes the ESTIMATES_VS_ACTUALS category and rolls up per-sprint or per-version (`type` selects which) over the chosen `range`. Use this for the 'how accurate is our planning over time' question — multiple sprints / versions in one call. For ticket-level detail in a single sprint, use pulse_get_estimates_vs_actuals instead; the two hit different BE endpoints.",
 
 	pulse_get_estimates_vs_actuals:
-		'Per-ticket comparison of estimated vs actual hours, sprint-scoped. Use to find systematic under- or over-estimation and to surface specific tickets driving variance. Requires a sprint filter, so call pulse_list_project_sprints first.',
+		"Per-ticket comparison of estimated vs actual hours for a single sprint. Use to find systematic under- or over-estimation and to surface specific tickets driving variance. Auto-fills the most recent sprint when `sprint` is omitted; the singular sprint differentiates this from pulse_get_pm_metric (which spans multiple sprints / versions).",
 
 	pulse_get_work_breakdown:
 		"Work distribution over a period: a graph showing split across ticket types or statuses (e.g. New Work vs Rework vs Refactor), or the same data as a trend over time. Use to answer 'what are we actually spending the sprint on' and to detect rising rework share.",
@@ -107,9 +105,12 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 	pulse_get_url_scan:
 		"Page-speed / Lighthouse results for a single registered URL. Without includeDetails it returns the URL's latest scan (mobile + desktop scores per category); with includeDetails=true + a range, it returns the full history of scans for that URL. Pair with pulse_list_project_urls to resolve the URL id.",
 
+	pulse_get_tech_audit:
+		"Project compliance scan against Studio Graphene engineering standards. Sits alongside the other Technical Success Criteria tools (security, coverage, version upgrades, page speed). Use when onboarding a new project, running a compliance review, or answering 'how well does this project meet our standards'.",
+
 	// Cycle time
 	pulse_get_cycle_time:
-		"Three variants: overall (headline number), summary (breakdown by phase: development, QA, deployment, etc.), and details (per-ticket cycle time with a sort key). Use to answer 'where is our time going' and to surface slow tickets worth investigating. The details variant is sprint-scoped; call pulse_list_project_sprints first.",
+		"Three variants: overall (headline number), summary (breakdown by phase: development, QA, deployment, etc.), and details (per-ticket cycle time with a sort key). Use to answer 'where is our time going' and to surface slow tickets worth investigating. The details variant is sprint- or version-scoped, with auto-fill for the most recent sprint when neither is supplied.",
 
 	// DevEx
 	pulse_get_devex_survey:
@@ -121,12 +122,12 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 	pulse_get_devex_summary:
 		"Fetches all 13 DevEx survey dimensions in parallel for a project and returns them keyed by dimension with an average-score summary. Much more efficient than calling pulse_get_devex_survey 13 times. Set includeComments=true when the qualitative 'why' matters — much heavier response.",
 
-	// Activity (org-level)
+	// Activity (per-member)
 	pulse_get_activity_overview:
-		"Org-level cross-project activity dashboard. Use for portfolio questions ('how is the org doing overall', 'which projects are quiet'). Not for single-project deep dives; reach for project-scoped tools instead.",
+		"Returns a list of organisation members and (for engineering-department users only) the projects they belong to. There is no org-level metric aggregation; this is a roster surface for navigating to individual members, not a portfolio dashboard. The `projects` array is gated to engineering-department callers — non-engineering users (PM, Design, etc.) get an empty list AND an empty string for `commonStartDate` by design, not because the tool is broken; explain this to the user rather than reporting 'no projects'. `organisationMembers` is always populated.",
 
 	pulse_list_org_members:
-		'Paginated list of all organisation members with rolled-up activity across projects. Use for people-ops views or to identify under-engaged contributors. Defaults to page 1 and limit 20; paginate when a full list is needed.',
+		"Paginated list of all organisation members. Returns member identity only (id, name, department, job role, manager, reportees) — NOT activity figures or rollups. Use for roster views, finding people, or paginating through the org. For one person's metrics, follow up with pulse_get_member_profile or pulse_get_member_metric. Defaults to page 1 and limit 20.",
 
 	pulse_get_member_profile:
 		"One person's metrics across every project they belong to. Use when the user asks about a specific engineer's output, quality, or engagement. Chain with pulse_find_user to resolve the user id from a name or email first.",
@@ -137,19 +138,9 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 	pulse_get_member_rca:
 		"One person's Root Cause Analysis: which defect categories ('Inadequate Unit testing', 'Requirement Understanding gap', etc.) their bugs cluster in. Three variants: overview (aggregate counts), details (per-bug breakdown), trends (time-series for a single category — requires `category`). projectIds[] is required; auto-fetched from the member profile when userId is supplied. Use after a low FTP signal from pulse_get_member_metric to surface the systemic causes worth coaching on.",
 
-	// Feedback
-	pulse_list_feedback:
-		"Paginated list of Pulse feedback items (user submissions about the platform). Use when the user asks 'what feedback are we getting on Pulse' or wants to triage reports. Defaults to page 1 and limit 20.",
-
-	pulse_get_feedback:
-		'Full detail of a single Pulse feedback item by id. Call after pulse_list_feedback when a specific item needs inspection.',
-
-	// Other
-	pulse_get_tech_audit:
-		"Project compliance scan against Studio Graphene engineering standards. Use when onboarding a new project, running a compliance review, or answering 'how well does this project meet our standards'.",
-
+	// Lookups (filter utilities most metric tools depend on)
 	pulse_list_project_sprints:
-		'Lists Jira sprints for a project, newest first. Call this before any sprint-filtered tool (pulse_get_qa_metric, pulse_get_estimates_vs_actuals, sprint-scoped pm queries, pulse_get_cycle_time details) so the correct sprint ids can be passed. Default to the 3 most recent when the user hasn\'t specified sprints.',
+		"Lists Jira sprints for a project, newest first. Use to resolve sprint ids when the user names a specific sprint or wants a custom window. Most sprint-scoped tools (pulse_get_qa_metric, pulse_get_qa_rca, pulse_get_estimates_vs_actuals, pulse_get_cycle_time) auto-fill the most recent sprints, so you only need this when the user picks a window the auto-fill wouldn't pick.",
 
 	pulse_list_project_releases:
 		'Lists Jira releases and versions for a project, filterable by status (released, unreleased, archived). Use for release-scoped QA metrics, release-note prep, or when the user asks about a specific version.',

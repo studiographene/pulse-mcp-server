@@ -44,7 +44,6 @@ const RULES: CategoryRule[] = [
 		category: 'jira',
 	},
 	{ matches: (n) => n.includes('project_member_changes'), category: 'write' },
-	{ matches: (n) => n.includes('_feedback'), category: 'feedback' },
 	{ matches: (n) => n.includes('_user') || n === 'pulse_whoami', category: 'users' },
 	{ matches: (n) => n.includes('_project'), category: 'projects' },
 ];
