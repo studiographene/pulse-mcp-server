@@ -1,18 +1,17 @@
 # pulse-mcp-server
 
-MCP server for the Pulse API — lets you query Pulse project data, metrics, feedback, and (optionally) update project team members directly from Claude and other MCP-compatible AI tools.
+MCP server for the Pulse API — lets you query Pulse project data, metrics, and (optionally) update project team members directly from Claude and other MCP-compatible AI tools.
 
-> **Status**: v1 — local-only, single-user. See [roadmap](#roadmap) for the hosted/shared v2.
+> **Status**: v1 — local stdio, single-user-per-process. See the [Pulse MCP install guide](./INSTALL.md) to get going.
 
 ## What it does
 
 Exposes the Pulse API as a set of MCP tools. When connected to Claude Desktop, Claude Code, or Claude Cowork, you can ask things like:
 
-- "Show me cycle time for the Pulse project over the last 30 days"
-- "What's the PR wait time trend on [customer]?"
-- "List feedback for the Pulse project"
-- "Who's on the Pulse team?"
-- "Remove [person] from the Pulse team" (with confirmation)
+- "Show me cycle time for my project over the last 30 days"
+- "What's the PR wait time trend on this project?"
+- "Who's on this project's team?"
+- "Remove this person from the project" (with confirmation)
 
 ## Requirements
 
@@ -121,31 +120,22 @@ Commits follow Conventional Commits (e.g. `feat(tools): add pulse_list_projects`
 
 ## Tools
 
-See `src/tools/` for the full registered set. v1 scope:
+See `src/tools/` for the full registered set:
 
 - **Projects**: list, get, list members
 - **Users**: find, list, whoami
 - **Metrics**: dev-process, QA, PM, technical (TSC), cycle time
 - **DevEx**: survey data
-- **Activity**: org-level cross-project metrics
-- **Feedback**: list, get
+- **Activity**: per-member metrics (commits, PRs, FTP, RCA, etc.)
 - **Tech Audit**: get
 - **Write**: update project members (propose/apply pattern with diff preview)
 
-## Roadmap
-
-- **v1 (current)**: local stdio, single user, paste-token auth
-- **v2**: hosted remote MCP with per-user Google OAuth, shareable across the team
-
-The v2 migration doesn't require rewrites — `TokenStore` and `AuthProvider` are interfaces, swapped at the composition root.
-
 ## Security
 
-- Access token stored locally with 0600 permissions, never transmitted except to the Pulse API
+- Access token stored locally with `0600` permissions, never transmitted except to the Pulse API
 - All calls use your Pulse account — actions are audited as you
-- No BE changes required; reuses existing `POST /login` flow
-- Semgrep SAST, licence scanning, and daily dependency vulnerability scans via reusable CI
+- See [SECURITY.md](./SECURITY.md) for vulnerability disclosure
 
 ## License
 
-Private — Studio Graphene internal use only.
+[MIT](./LICENSE)
