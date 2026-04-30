@@ -203,19 +203,81 @@ function buildMemberMetricQuery(args: MemberMetricArgs): Record<string, unknown>
 	};
 }
 
-async function autoFetchProjectIdsForMember(
+interface MemberContext {
+	projectIds: string[];
+	repoIds: string[];
+}
+
+/**
+ * Resolve the projectIds[] AND repoIds[] for a member from their profile.
+ *
+ * The /activity/* metric endpoints split awkwardly along this axis:
+ *   - FTP, RCA: scoped by projectIds[] (BE rejects empty)
+ *   - PR, CODE_COMMIT, PR_COMMENTS, LINE_OF_CODE: scoped by repoIds[]
+ *     (BE returns success with NO `data` payload when missing — silent zero)
+ *
+ * Without this auto-fetch the per-member tools "work" but return empty
+ * results across the board, which an LLM consumer can't distinguish from
+ * a real zero. Fetching from the profile gives us both lists in a single
+ * request — projects[].repositories[].id has everything we need.
+ *
+ * Cached at the tool layer via the api client's request cache (if any);
+ * called at most once per tool invocation regardless of category.
+ */
+async function getMemberContext(
 	api: ToolContext['api'],
 	userId: string
-): Promise<string[]> {
-	// /activity/profile returns the member's projects[]; we use it as a fallback
-	// when FTP/RCA endpoints need projectIds[] and the caller didn't supply.
+): Promise<MemberContext> {
 	const profile = (await api.request({
 		method: 'GET',
 		path: `/activity/profile/${userId}`,
-	})) as { data?: { projects?: Array<{ id?: string }> } };
-	return (profile?.data?.projects ?? [])
+	})) as {
+		data?: {
+			projects?: Array<{
+				id?: string;
+				repositories?: Array<{ id?: string }>;
+			}>;
+		};
+	};
+	const projects = profile?.data?.projects ?? [];
+	const projectIds = projects
 		.map((p) => p?.id)
 		.filter((id): id is string => typeof id === 'string');
+	const repoIds = projects
+		.flatMap((p) => p?.repositories ?? [])
+		.map((r) => r?.id)
+		.filter((id): id is string => typeof id === 'string');
+	// De-dupe — a repo could appear under more than one project.
+	return { projectIds, repoIds: Array.from(new Set(repoIds)) };
+}
+
+/**
+ * Repo-scoped categories: BE returns success with NO `data` payload when
+ * `repoIds[]` is missing. Silent zero — indistinguishable from "this user
+ * really has zero PRs" without auto-fetching the scope.
+ */
+const REPO_SCOPED_CATEGORIES = new Set(['CODE_COMMIT', 'PR', 'PR_COMMENTS', 'LINE_OF_CODE']);
+
+function needsScopeAutoFetch(args: MemberMetricArgs): boolean {
+	if (!args.userId) return false;
+	if (REPO_SCOPED_CATEGORIES.has(args.category)) {
+		return !args.repoIds || args.repoIds.length === 0;
+	}
+	if (args.category === 'FTP') {
+		return !args.projectIds || args.projectIds.length === 0;
+	}
+	return false;
+}
+
+function resolveMemberMetricPath(args: MemberMetricArgs): string {
+	const isDetails = args.category === 'PR_COMMENTS' && args.includeDetails;
+	if (isDetails && (!args.page || !args.limit)) {
+		throw new Error(
+			'pulse_get_member_metric: PR_COMMENTS + includeDetails requires page + limit.'
+		);
+	}
+	const basePath = MEMBER_METRIC_TO_PATH[args.category];
+	return isDetails ? `${basePath}/details` : basePath;
 }
 
 export const getMemberMetricTool: ToolDefinition<typeof MemberMetricInput> = {
@@ -225,30 +287,23 @@ export const getMemberMetricTool: ToolDefinition<typeof MemberMetricInput> = {
 		'(See instructions.ts.)',
 	inputSchema: MemberMetricInput,
 	handler: async (args, ctx) => {
-		// FTP needs projectIds[]; auto-fetch from the member's profile when missing.
-		const needsAutoFetchProjects =
-			args.category === 'FTP' &&
-			(!args.projectIds || args.projectIds.length === 0) &&
-			!!args.userId;
-		const projectIds = needsAutoFetchProjects
-			? await autoFetchProjectIdsForMember(ctx.api, args.userId as string)
-			: args.projectIds;
-
-		// PR_COMMENTS + includeDetails routes to /activity/pr-comments/details.
-		const isDetails = args.category === 'PR_COMMENTS' && args.includeDetails;
-		if (isDetails && (!args.page || !args.limit)) {
-			throw new Error(
-				'pulse_get_member_metric: PR_COMMENTS + includeDetails requires page + limit.'
-			);
-		}
-
-		const basePath = MEMBER_METRIC_TO_PATH[args.category];
-		const path = isDetails ? `${basePath}/details` : basePath;
+		// Auto-fetch repos + projects from the profile when scope is missing —
+		// repo-scoped categories silent-zero on the BE without repoIds[], and
+		// FTP outright rejects empty projectIds[].
+		const memberCtx = needsScopeAutoFetch(args)
+			? await getMemberContext(ctx.api, args.userId as string)
+			: null;
+		const repoIds =
+			args.repoIds && args.repoIds.length > 0 ? args.repoIds : memberCtx?.repoIds;
+		const projectIds =
+			args.projectIds && args.projectIds.length > 0
+				? args.projectIds
+				: memberCtx?.projectIds;
 
 		return ctx.api.request({
 			method: 'GET',
-			path,
-			query: { ...buildMemberMetricQuery(args), projectIds },
+			path: resolveMemberMetricPath(args),
+			query: { ...buildMemberMetricQuery(args), repoIds, projectIds },
 		});
 	},
 };
@@ -301,10 +356,15 @@ export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 	inputSchema: MemberRcaInput,
 	handler: async (args, ctx) => {
 		// Auto-fetch projectIds[] from the member profile when omitted.
-		let { projectIds } = args;
-		if ((!projectIds || projectIds.length === 0) && args.userId) {
-			projectIds = await autoFetchProjectIdsForMember(ctx.api, args.userId);
-		}
+		const needsAutoFetch =
+			(!args.projectIds || args.projectIds.length === 0) && !!args.userId;
+		const memberCtx = needsAutoFetch
+			? await getMemberContext(ctx.api, args.userId as string)
+			: null;
+		const projectIds =
+			args.projectIds && args.projectIds.length > 0
+				? args.projectIds
+				: memberCtx?.projectIds;
 		if (!projectIds || projectIds.length === 0) {
 			throw new Error(
 				'pulse_get_member_rca: projectIds[] is required. ' +
