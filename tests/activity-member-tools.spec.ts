@@ -19,18 +19,69 @@ function mockApi(handler: (req: any) => unknown): ToolContext {
 describe('pulse_get_member_metric', () => {
 	const userId = '11111111-1111-1111-1111-111111111111';
 	const projectId = '22222222-2222-2222-2222-222222222222';
+	const repoId = 'gh_repo_1234567';
 
-	it('routes CODE_COMMIT to /activity/code-commit', async () => {
-		const ctx = mockApi(() => ({ ok: true }));
+	it('routes CODE_COMMIT to /activity/code-commit and auto-fetches repoIds from the profile', async () => {
+		const ctx = mockApi((req) => {
+			if (req.path.startsWith('/activity/profile/')) {
+				return {
+					data: {
+						projects: [
+							{ id: projectId, repositories: [{ id: repoId, name: 'web' }] },
+						],
+					},
+				};
+			}
+			return { ok: true };
+		});
 		const args = getMemberMetricTool.inputSchema.parse({
 			userId,
 			category: 'CODE_COMMIT',
 		});
 		await getMemberMetricTool.handler(args, ctx);
 		const reqs = (ctx.api as any).__requests;
-		expect(reqs[0].path).toBe('/activity/code-commit');
-		expect(reqs[0].query.userId).toBe(userId);
-		expect(reqs[0].query.range).toBe('30 days');
+		expect(reqs[0].path).toBe(`/activity/profile/${userId}`); // auto-fetch
+		expect(reqs[1].path).toBe('/activity/code-commit');
+		expect(reqs[1].query.userId).toBe(userId);
+		expect(reqs[1].query.range).toBe('30 days');
+		expect(reqs[1].query.repoIds).toEqual([repoId]);
+	});
+
+	it('skips auto-fetch when repoIds[] is supplied', async () => {
+		const ctx = mockApi(() => ({ ok: true }));
+		const args = getMemberMetricTool.inputSchema.parse({
+			userId,
+			category: 'PR',
+			repoIds: ['provided_repo'],
+		});
+		await getMemberMetricTool.handler(args, ctx);
+		const reqs = (ctx.api as any).__requests;
+		expect(reqs).toHaveLength(1);
+		expect(reqs[0].path).toBe('/activity/pr');
+		expect(reqs[0].query.repoIds).toEqual(['provided_repo']);
+	});
+
+	it('de-duplicates repoIds when a repo appears under multiple projects', async () => {
+		const ctx = mockApi((req) => {
+			if (req.path.startsWith('/activity/profile/')) {
+				return {
+					data: {
+						projects: [
+							{ id: 'p1', repositories: [{ id: 'r1' }, { id: 'r2' }] },
+							{ id: 'p2', repositories: [{ id: 'r2' }, { id: 'r3' }] },
+						],
+					},
+				};
+			}
+			return { ok: true };
+		});
+		const args = getMemberMetricTool.inputSchema.parse({
+			userId,
+			category: 'PR',
+		});
+		await getMemberMetricTool.handler(args, ctx);
+		const reqs = (ctx.api as any).__requests;
+		expect((reqs[1].query.repoIds as string[]).slice().sort()).toEqual(['r1', 'r2', 'r3']);
 	});
 
 	it('routes FTP to /activity/ftp and auto-fetches projectIds when missing', async () => {
@@ -52,7 +103,12 @@ describe('pulse_get_member_metric', () => {
 	});
 
 	it('routes PR_COMMENTS + includeDetails to /activity/pr-comments/details', async () => {
-		const ctx = mockApi(() => ({ rows: [] }));
+		const ctx = mockApi((req) => {
+			if (req.path.startsWith('/activity/profile/')) {
+				return { data: { projects: [{ id: projectId, repositories: [{ id: repoId }] }] } };
+			}
+			return { rows: [] };
+		});
 		const args = getMemberMetricTool.inputSchema.parse({
 			userId,
 			category: 'PR_COMMENTS',
@@ -62,9 +118,10 @@ describe('pulse_get_member_metric', () => {
 		});
 		await getMemberMetricTool.handler(args, ctx);
 		const reqs = (ctx.api as any).__requests;
-		expect(reqs[0].path).toBe('/activity/pr-comments/details');
-		expect(reqs[0].query.page).toBe(1);
-		expect(reqs[0].query.limit).toBe(25);
+		// reqs[0] is the auto-fetch profile call.
+		expect(reqs[1].path).toBe('/activity/pr-comments/details');
+		expect(reqs[1].query.page).toBe(1);
+		expect(reqs[1].query.limit).toBe(25);
 	});
 
 	it('rejects PR_COMMENTS + includeDetails when page/limit missing', async () => {
@@ -78,7 +135,12 @@ describe('pulse_get_member_metric', () => {
 	});
 
 	it('uses customRange[] when supplied (range is suppressed)', async () => {
-		const ctx = mockApi(() => ({ ok: true }));
+		const ctx = mockApi((req) => {
+			if (req.path.startsWith('/activity/profile/')) {
+				return { data: { projects: [{ id: projectId, repositories: [{ id: repoId }] }] } };
+			}
+			return { ok: true };
+		});
 		const args = getMemberMetricTool.inputSchema.parse({
 			userId,
 			category: 'PR',
@@ -86,8 +148,9 @@ describe('pulse_get_member_metric', () => {
 		});
 		await getMemberMetricTool.handler(args, ctx);
 		const reqs = (ctx.api as any).__requests;
-		expect(reqs[0].query.range).toBeUndefined();
-		expect(reqs[0].query.customRange).toEqual(['2026-01-01', '2026-03-31']);
+		// reqs[0] is the auto-fetch profile call.
+		expect(reqs[1].query.range).toBeUndefined();
+		expect(reqs[1].query.customRange).toEqual(['2026-01-01', '2026-03-31']);
 	});
 });
 
