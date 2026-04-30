@@ -70,7 +70,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 	// Dev Process
 	pulse_get_dev_process_metric:
-		'Single enum-parameter tool covering 8 dev process endpoints: code commits, lines of code, PR count, PR comments, PR wait time, PR size, active branches, and deployment frequency. repoIds and companyId are auto-populated from the project when omitted. includeDetails is supported only for NUMBER_COMMENTS_ADDED_TO_PRS, NUMBER_OF_BRANCHES, NUMBER_PR_RAISED, DEPLOYMENT_FREQUENCY, and SIZE_OF_PR (the last one additionally requires page + limit). branch defaults to ["main"] for LINES_OF_CODE+graph.',
+		'Single enum-parameter tool covering 8 dev process endpoints: code commits, lines of code, PR count, PR comments, PR wait time, PR size, active branches, and deployment frequency. repoIds and companyId are auto-populated from the project when omitted. branch defaults to ["main"] for every category — pass explicitly only when the project uses a different default branch. includeDetails is supported only for NUMBER_COMMENTS_ADDED_TO_PRS, NUMBER_OF_BRANCHES, NUMBER_PR_RAISED, DEPLOYMENT_FREQUENCY, and SIZE_OF_PR (the last three additionally require page + limit).',
 
 	// QA
 	pulse_get_qa_metric:
