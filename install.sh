@@ -47,7 +47,11 @@ CONFIG_DIR_MAC="$HOME/Library/Application Support/Claude"
 CONFIG_DIR_LINUX="$HOME/.config/Claude"
 TOKEN_DIR="$HOME/.pulse-mcp"
 TOKEN_FILE="$TOKEN_DIR/token.json"
-PACKAGE_NAME="@studiographene/pulse-mcp"
+# Install straight from the public GitHub repo rather than npm. Override
+# INSTALL_REF with a tag (e.g. v1.3.0) to pin a specific version;
+# defaults to master.
+INSTALL_REF="${PULSE_MCP_INSTALL_REF:-master}"
+PACKAGE_SOURCE="git+https://github.com/studiographene/pulse-mcp-server.git#${INSTALL_REF}"
 
 # ---------- 1. Node ----------
 step "Checking for Node.js"
@@ -153,7 +157,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     "mcpServers": {
       "pulse": {
         "command": "npx",
-        "args": ["-y", "$PACKAGE_NAME"]
+        "args": ["-y", "$PACKAGE_SOURCE"]
       }
     }
   }
@@ -166,9 +170,9 @@ else
 		info "Backed up existing config to $BACKUP_FILE"
 	fi
 
-	python3 - "$CONFIG_FILE" "$PACKAGE_NAME" <<'PYEOF'
+	python3 - "$CONFIG_FILE" "$PACKAGE_SOURCE" <<'PYEOF'
 import json, os, sys
-path, package_name = sys.argv[1], sys.argv[2]
+path, package_source = sys.argv[1], sys.argv[2]
 data = {}
 if os.path.exists(path):
     try:
@@ -181,7 +185,7 @@ if os.path.exists(path):
 mcp_servers = data.setdefault("mcpServers", {})
 mcp_servers["pulse"] = {
     "command": "npx",
-    "args": ["-y", package_name],
+    "args": ["-y", package_source],
 }
 
 with open(path, "w") as f:

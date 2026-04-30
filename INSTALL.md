@@ -69,7 +69,7 @@ chmod 600 ~/.pulse-mcp/token.json
   "mcpServers": {
     "pulse": {
       "command": "npx",
-      "args": ["-y", "@studiographene/pulse-mcp"]
+      "args": ["-y", "git+https://github.com/studiographene/pulse-mcp-server.git"]
     }
   }
 }
@@ -78,8 +78,10 @@ chmod 600 ~/.pulse-mcp/token.json
 **Claude Code**:
 
 ```bash
-claude mcp add pulse npx -y @studiographene/pulse-mcp
+claude mcp add pulse npx -y git+https://github.com/studiographene/pulse-mcp-server.git
 ```
+
+> **Pinning a version**: append `#vX.Y.Z` to the git URL — e.g. `git+https://github.com/studiographene/pulse-mcp-server.git#v1.3.0`. Without a pin, `npx` clones the latest `master` on each invocation.
 
 ### 4. Restart and verify
 
