@@ -6,6 +6,12 @@ on:
 
 jobs:
   call-workflow:
+    # Skip CI on PRs opened from forks of this repo. Once the repo is public,
+    # external contributors should be able to open PRs without their CI runs
+    # sending coverage analytics back to Studio Graphene's internal Pulse
+    # pipeline. Internal PRs (head and base in the same repo) and issue-
+    # comment events still run normally.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     uses: studiographene/github-action-workflows/.github/workflows/nodejs-ci.yml@master
     secrets: inherit
     with:

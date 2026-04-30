@@ -5,10 +5,9 @@ import { recentSprintIds } from '../utils/sprint-context';
 /**
  * PM metrics — 3 clusters: headline PM, estimates-vs-actuals, work-breakdown (graph/trends).
  *
- * Time-spent was previously exposed as pulse_get_time_spent but the underlying BE
- * feature was shelved (all variants 501 behind the `time_spent_feature` Statsig flag
- * with no plans to ship). Tool removed to avoid tempting Claude to call something
- * that will never work.
+ * Time-spent was previously exposed as pulse_get_time_spent but the underlying
+ * BE feature is currently disabled, so the tool was removed to avoid tempting
+ * Claude to call something that will not work.
  */
 
 const PM_METRIC = 'PM_SUCCESS_CRITERIA';
