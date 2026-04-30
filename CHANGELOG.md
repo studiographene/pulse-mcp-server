@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.3.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.2.0...v1.3.0) (2026-04-30)
+
+
+### Features
+
+* **PX-3685:** add per-member activity tools (FTP, RCA, commit, PR, etc.) ([5f00e8e](https://github.com/studiographene/pulse-mcp-server/commit/5f00e8e0aeea03ae27f75e82abcd184068ca3cc0))
+* **PX-3685:** per-member activity tools (FTP, RCA, commits, PRs, etc.) ([#12](https://github.com/studiographene/pulse-mcp-server/issues/12)) ([e479294](https://github.com/studiographene/pulse-mcp-server/commit/e479294d66cc9d5ba64adbff265fea05c012c78f))
+* **PX-3685:** support opaque pulse_mcp_ tokens for telemetry user_id ([c85e712](https://github.com/studiographene/pulse-mcp-server/commit/c85e7129e032263ba480542eff33fcac7259fe88))
+* **PX-3685:** support opaque pulse_mcp_ tokens for telemetry user_id ([#11](https://github.com/studiographene/pulse-mcp-server/issues/11)) ([b4055bb](https://github.com/studiographene/pulse-mcp-server/commit/b4055bbacb094c77f389d37d0d7e0718150b2897))
+* **PX-3685:** v1.3 polish pass (Cowork smoke findings) ([#10](https://github.com/studiographene/pulse-mcp-server/issues/10)) ([5ff0be5](https://github.com/studiographene/pulse-mcp-server/commit/5ff0be5918bbb0212d52c9b82b5efe820d706f59))
+* **PX-3685:** v1.3 polish pass from Cowork smoke report ([2da88e0](https://github.com/studiographene/pulse-mcp-server/commit/2da88e036534ddc4ca677a3e6492d4c6daf82da7))
+
+
+### Bug Fixes
+
+* **PX-3685:** auto-fetch repoIds for repo-scoped per-member metrics ([165ec51](https://github.com/studiographene/pulse-mcp-server/commit/165ec51035a6bc90cbe8a318ce8efc9def36f652))
+* **PX-3685:** auto-fetch repoIds for repo-scoped per-member metrics ([#13](https://github.com/studiographene/pulse-mcp-server/issues/13)) ([7c87843](https://github.com/studiographene/pulse-mcp-server/commit/7c87843493f8685d20e87e36f20468434a8ffdb6))
+* **PX-3685:** auto-fetch sprints for sprint-scoped project metrics ([14c5935](https://github.com/studiographene/pulse-mcp-server/commit/14c5935163799a8d3a59c6ac11bc5afabb50a9a5))
+* **PX-3685:** auto-fetch sprints for sprint-scoped project metrics ([#14](https://github.com/studiographene/pulse-mcp-server/issues/14)) ([e408d02](https://github.com/studiographene/pulse-mcp-server/commit/e408d023cd0d7be89bc1186697345e4382ad23df))
+
 ## [1.2.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.1.0...v1.2.0) (2026-04-24)
 
 
