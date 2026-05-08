@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.3.0...v1.4.0) (2026-05-08)
+
+
+### Features
+
+* **PX-3685:** one-line install script + simpler INSTALL.md ([4509cef](https://github.com/studiographene/pulse-mcp-server/commit/4509ceff8138086b3239202c6395a2a85218617f))
+* **PX-3685:** one-line install script + simpler INSTALL.md ([#18](https://github.com/studiographene/pulse-mcp-server/issues/18)) ([8e53d0d](https://github.com/studiographene/pulse-mcp-server/commit/8e53d0db096a19816f64a92488834b5938cec078))
+
+
+### Bug Fixes
+
+* **PX-3685:** default dev-process branch to ['main'] for every category ([2cd85e5](https://github.com/studiographene/pulse-mcp-server/commit/2cd85e5ab128ceef354ed24cc32e9e2a7ac7517e))
+* **PX-3685:** default dev-process branch to ['main'] for every category ([#19](https://github.com/studiographene/pulse-mcp-server/issues/19)) ([7767d39](https://github.com/studiographene/pulse-mcp-server/commit/7767d39e5ce8a74c9647fba551777496b6b82872))
+* **PX-3685:** pre-public-release fix-ups ([b8d7cab](https://github.com/studiographene/pulse-mcp-server/commit/b8d7cabb0d3b2169296cf43420c2131dbcedc1fb))
+* **PX-3685:** pre-public-release fix-ups (F-003, F-007, F-008, F-012) ([#22](https://github.com/studiographene/pulse-mcp-server/issues/22)) ([130b04a](https://github.com/studiographene/pulse-mcp-server/commit/130b04a6b21294035d4dacf96a16cacc2ffd0c08))
+
 ## [1.3.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.2.0...v1.3.0) (2026-04-30)
 
 
