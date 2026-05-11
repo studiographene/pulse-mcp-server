@@ -34,7 +34,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"prepare": "husky install",
+		"prepare": "(husky install || true) && (test -d dist || npm run build)",
 		"prebuild": "rimraf dist",
 		"build": "tsc --project tsconfig.build.json",
 		"start": "node dist/index.js",
