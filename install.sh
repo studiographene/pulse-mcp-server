@@ -124,13 +124,16 @@ if [ -s "$TOKEN_FILE" ]; then
 fi
 
 if [ "${SKIP_TOKEN:-false}" != "true" ]; then
+	printf "\n  ${BOLD}${YELLOW}⚡ Action required${RESET}\n\n"
 	cat <<'EOF'
-  Get your token:
-    Open https://pulse.studiographene.com/profile, find the
-    "MCP Access" section, click "Copy", and paste below.
+  1. Open https://pulse.studiographene.com/profile in your browser.
+  2. Find the "MCP Access" section.
+  3. Click "Copy".
+  4. Come back here and paste at the prompt below.
 
 EOF
-	printf "  ${BOLD}Paste your token and press Enter:${RESET} "
+	printf "  ${BOLD}${YELLOW}→ Paste your token here, then press Enter:${RESET}\n"
+	printf "  ${BOLD}> ${RESET}"
 	read -r PULSE_TOKEN
 	if [ -z "$PULSE_TOKEN" ]; then
 		fail "No token provided."
