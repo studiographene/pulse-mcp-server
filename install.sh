@@ -21,15 +21,20 @@
 
 set -euo pipefail
 
-# ---------- interactive prompt fix ----------
-# The documented install path is `curl … | bash`, which means bash's stdin is
-# the pipe — already drained by the time we hit `read`. Re-attach stdin to the
-# user's terminal so prompts actually work. Falls through cleanly when stdin
-# is already a tty (direct `bash install.sh` invocation) or when /dev/tty is
-# unavailable (genuine non-interactive CI run — handled by the empty-token
-# check at line ~125).
-if [ ! -t 0 ] && [ -r /dev/tty ]; then
-	exec </dev/tty
+# ---------- interactive prompt source ----------
+# The documented install path is `curl … | bash`, where bash's stdin is the
+# pipe carrying the script itself. We cannot `exec </dev/tty` globally because
+# that would also replace the script-source FD bash is reading from, leaving
+# bash to interpret subsequent keystrokes as new commands. Instead, each
+# `read` call below uses an explicit `</dev/tty` redirect so only that prompt
+# reads from the terminal, leaving the script stream intact.
+if [ -r /dev/tty ]; then
+	PROMPT_FD="/dev/tty"
+else
+	# Fallback: no tty (true non-interactive run, e.g. CI). Reads will pull
+	# from the pipe and almost certainly get EOF; the empty-token check
+	# fails fast with a clear message.
+	PROMPT_FD="/dev/stdin"
 fi
 
 # ---------- presentation ----------
@@ -89,7 +94,7 @@ if [ "$NODE_OK" = false ]; then
 			fail "Homebrew not found. Install from https://brew.sh and re-run, or install Node manually from https://nodejs.org and re-run."
 		fi
 		printf "  Install Node.js 22 LTS via Homebrew? ${BOLD}[y/N]${RESET} "
-		read -r answer
+		read -r answer <"$PROMPT_FD"
 		case "$answer" in
 			y|Y|yes|YES)
 				info "Running: brew install node@22"
@@ -116,7 +121,7 @@ step "Pulse MCP token"
 if [ -s "$TOKEN_FILE" ]; then
 	info "Existing token found at $TOKEN_FILE"
 	printf "  Replace it with a new token? ${BOLD}[y/N]${RESET} "
-	read -r answer
+	read -r answer <"$PROMPT_FD"
 	case "$answer" in
 		y|Y|yes|YES) ;;
 		*) ok "Keeping existing token"; SKIP_TOKEN=true ;;
@@ -134,7 +139,7 @@ if [ "${SKIP_TOKEN:-false}" != "true" ]; then
 EOF
 	printf "  ${BOLD}${YELLOW}→ Paste your token here, then press Enter:${RESET}\n"
 	printf "  ${BOLD}> ${RESET}"
-	read -r PULSE_TOKEN
+	read -r PULSE_TOKEN <"$PROMPT_FD"
 	if [ -z "$PULSE_TOKEN" ]; then
 		fail "No token provided."
 	fi
