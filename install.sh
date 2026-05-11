@@ -21,6 +21,17 @@
 
 set -euo pipefail
 
+# ---------- interactive prompt fix ----------
+# The documented install path is `curl … | bash`, which means bash's stdin is
+# the pipe — already drained by the time we hit `read`. Re-attach stdin to the
+# user's terminal so prompts actually work. Falls through cleanly when stdin
+# is already a tty (direct `bash install.sh` invocation) or when /dev/tty is
+# unavailable (genuine non-interactive CI run — handled by the empty-token
+# check at line ~125).
+if [ ! -t 0 ] && [ -r /dev/tty ]; then
+	exec </dev/tty
+fi
+
 # ---------- presentation ----------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
