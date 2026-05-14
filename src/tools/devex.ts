@@ -157,10 +157,33 @@ const DevExSummaryInput = z.object({
 interface SurveyDimension {
 	type: SurveyQuestionType;
 	score?: number;
+	hasData?: boolean;
 	data?: unknown;
 	error?: string;
 	comments?: unknown;
 	commentsError?: string;
+}
+
+/**
+ * Distinguishes "no responses" from a real low score.
+ *
+ * The Pulse DevEx API returns `score: 0` for dimensions with zero responses
+ * *and* for the (statistically near-impossible) case where every respondent
+ * strongly disagreed. The `graph` field carries percentages that sum to ~100
+ * when there are real responses, and to 0 when there are none. We use the
+ * graph-bucket sum as the canonical signal.
+ *
+ * If `graph` is missing entirely (a BE shape change), we conservatively
+ * treat the dimension as having data — better to over-include in the
+ * average than to silently drop responses.
+ */
+function hasResponses(data: unknown): boolean {
+	const g = (data as { graph?: Record<string, number> } | undefined)?.graph;
+	if (!g || typeof g !== 'object') return true;
+	const sum = Object.values(g)
+		.filter((v): v is number => typeof v === 'number')
+		.reduce((a, b) => a + b, 0);
+	return sum > 0;
 }
 
 async function fetchOne(
@@ -169,7 +192,7 @@ async function fetchOne(
 	type: SurveyQuestionType,
 	range: RangeValue,
 	customRange?: string[]
-): Promise<Pick<SurveyDimension, 'type' | 'data' | 'score' | 'error'>> {
+): Promise<Pick<SurveyDimension, 'type' | 'data' | 'score' | 'hasData' | 'error'>> {
 	try {
 		const res = (await api.request({
 			method: 'GET',
@@ -178,7 +201,13 @@ async function fetchOne(
 		})) as { data?: { score?: number } };
 		// Unwrap the envelope: API returns {statusCode, message, data: {...}}.
 		// We return only the inner data so consumers don't end up with data.data.
-		return { type, data: res?.data ?? res, score: res?.data?.score };
+		const inner = res?.data ?? res;
+		return {
+			type,
+			data: inner,
+			score: res?.data?.score,
+			hasData: hasResponses(inner),
+		};
 	} catch (err) {
 		return { type, error: (err as Error).message?.slice(0, 180) ?? String(err) };
 	}
@@ -245,18 +274,32 @@ export const getDevExSummaryTool: ToolDefinition<typeof DevExSummaryInput> = {
 				...(commentsByType[s.type] ?? {}),
 			};
 		}
-		const scored = surveys.filter((s) => typeof s.score === 'number') as Array<{
-			type: SurveyQuestionType;
-			score: number;
-		}>;
+		// Only dimensions with actual responses (hasData=true) feed the
+		// headline average. Previously we used `typeof score === 'number'`,
+		// which incorrectly included no-response dimensions where the API
+		// returns score=0, dragging healthy projects' averages down to ~20s.
+		// See Cowork feedback 2026-05-14, issue #4.
+		const contributing = surveys.filter(
+			(s): s is typeof s & { score: number } =>
+				s.hasData === true && typeof s.score === 'number'
+		);
+		const dimensionsNoResponses = surveys
+			.filter((s) => s.hasData === false)
+			.map((s) => s.type);
+		const dimensionsErrored = surveys
+			.filter((s) => s.error !== undefined)
+			.map((s) => s.type);
 		const summary = {
 			projectId: args.projectId,
 			range: args.range,
 			dimensionsFetched: SURVEY_QUESTION_TYPES.length,
-			dimensionsWithScore: scored.length,
+			dimensionsContributing: contributing.length,
+			dimensionsNoResponses,
+			dimensionsErrored,
 			averageScore:
-				scored.length > 0
-					? scored.reduce((sum, s) => sum + s.score, 0) / scored.length
+				contributing.length > 0
+					? contributing.reduce((sum, s) => sum + s.score, 0) /
+						contributing.length
 					: null,
 		};
 		return { summary, dimensions };

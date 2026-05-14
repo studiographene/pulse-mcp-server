@@ -63,10 +63,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 		"Returns current members of a project (id, name, email, role). Use before any member write operation, for 'who's on this project', and when attributing metrics to individuals. Feeds directly into pulse_propose_project_member_changes.",
 
 	pulse_list_users:
-		'Lists all users the caller can see (admin view). Use sparingly, mostly for admin access audits or to locate users who are not yet on any project. For lookups by name or email, prefer pulse_find_user.',
+		'Lists all users the caller can see (admin view). Use sparingly, mostly for admin access audits or to locate users who are not yet on any project. For lookups by name, prefer pulse_find_user.',
 
 	pulse_find_user:
-		"Case-insensitive substring search over names and emails; returns user UUIDs. Use this first whenever the user names a person (e.g. 'their metrics', 'add the new joiner to the project'). Much faster than paging pulse_list_users.",
+		"Case-insensitive substring search over names (firstName + lastName); returns user UUIDs. Use this first whenever the user names a person (e.g. 'their metrics', 'add the new joiner to the project'). Email search is NOT supported — the Pulse /users endpoint doesn't return email addresses, so a query containing '@' will always return zero matches. If you only have an email, ask for the name instead. Much faster than paging pulse_list_users.",
 
 	// Dev Process
 	pulse_get_dev_process_metric:

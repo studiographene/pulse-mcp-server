@@ -71,6 +71,43 @@ function buildQaMetricQuery(
 	};
 }
 
+/**
+ * Walks a QA metric response and counts how many of the per-sprint
+ * `graphData` rows actually carried data (i.e. were not GREY-regioned for
+ * having zero tagged work). Lets a caller see when a headline like
+ * "93.33% AMBER" is derived from just 1 of 3 sprints — see Cowork
+ * feedback 2026-05-14, issue #11.
+ *
+ * Returns null when the response has no `graphData` shape we can reason
+ * about (some categories don't carry per-sprint rows).
+ */
+function summariseSprintCoverage(
+	res: unknown
+): { contributing: number; total: number; greyed: string[] } | null {
+	const graphData = (
+		res as { data?: { graphData?: unknown } } | undefined
+	)?.data?.graphData;
+	if (!Array.isArray(graphData) || graphData.length === 0) return null;
+	const rows = graphData as Array<{
+		region?: string;
+		total?: number;
+		sprintName?: string;
+	}>;
+	const greyed: string[] = [];
+	let contributing = 0;
+	for (const row of rows) {
+		const hasData =
+			(row.total ?? 0) > 0 ||
+			(row.region !== undefined && row.region !== 'GREY');
+		if (hasData) {
+			contributing += 1;
+		} else if (row.sprintName) {
+			greyed.push(row.sprintName);
+		}
+	}
+	return { contributing, total: rows.length, greyed };
+}
+
 export const getQaMetricTool: ToolDefinition<typeof CoreQaInput> = {
 	name: 'pulse_get_qa_metric',
 	description: 'Core QA metric (FTP, reopen, defect resolution). (See instructions.ts.)',
@@ -97,9 +134,12 @@ export const getQaMetricTool: ToolDefinition<typeof CoreQaInput> = {
 			path,
 			query: buildQaMetricQuery(args, canIncludeDetails, autoSprints),
 		});
-		return autoSprints
-			? { ...(res as Record<string, unknown>), _autoFilledSprints: autoSprints }
-			: res;
+		const coverage = summariseSprintCoverage(res);
+		return {
+			...(res as Record<string, unknown>),
+			...(autoSprints ? { _autoFilledSprints: autoSprints } : {}),
+			...(coverage ? { _contributingSprints: coverage } : {}),
+		};
 	},
 };
 

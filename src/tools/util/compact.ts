@@ -22,8 +22,16 @@ export type ResponseFormat = 'summary' | 'full';
 /** How many items of a long array to keep as a sample in summary mode. */
 export const SUMMARY_SAMPLE_SIZE = 5;
 
-/** Arrays shorter than this are never summarised (assumed already concise). */
-export const SUMMARY_MIN_LENGTH = 20;
+/**
+ * Arrays shorter than this are never summarised (assumed already concise).
+ *
+ * Set just above SUMMARY_SAMPLE_SIZE: any array longer than the sample we
+ * would return gets collapsed. The previous threshold of 20 left mid-size
+ * arrays (10–19 elements) uncompressed, which produced 60 KB+ responses for
+ * cycle-time details on real projects and overflowed the LLM tool-result
+ * budget (Cowork feedback 2026-05-14, issue #1).
+ */
+export const SUMMARY_MIN_LENGTH = SUMMARY_SAMPLE_SIZE + 1;
 
 /**
  * Deep-walk a response and strip avatar URL fields. Returns a new object —
