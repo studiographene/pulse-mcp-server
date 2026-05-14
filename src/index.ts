@@ -82,6 +82,10 @@ function registerHandlers(
 			name: t.name,
 			description: TOOL_DESCRIPTIONS[t.name] ?? t.description,
 			inputSchema: zodToJsonSchema(t.inputSchema),
+			// Annotations let the MCP client group tools by readOnlyHint
+			// (e.g. Claude Desktop's "Read-only tools (N)" batch-permission
+			// dropdown). Omitted entirely if the tool didn't declare any.
+			...(t.annotations ? { annotations: t.annotations } : {}),
 		}));
 		return { tools: toolList };
 	});
