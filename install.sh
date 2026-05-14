@@ -104,7 +104,17 @@ if [ "$NODE_OK" = false ]; then
 			case "$brew_answer" in
 				y|Y|yes|YES)
 					info "Running the official Homebrew installer from https://brew.sh"
-					/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+					# Give the Homebrew installer an explicit TTY for stdin.
+					# Same root cause as our own `curl | bash` fix earlier (PR
+					# #27): when this script is itself invoked via curl|bash,
+					# its stdin is the depleted curl pipe. The Homebrew
+					# installer also tries to read from stdin (to confirm
+					# install dirs and prompt for sudo), and it refuses to
+					# prompt for sudo in "non-interactive" mode, which then
+					# surfaces as "Need sudo access on macOS" even when the
+					# user IS an admin. Forcing `< /dev/tty` (via PROMPT_FD)
+					# gives Homebrew a real interactive terminal.
+					/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" <"$PROMPT_FD"
 					# Source brew into the current shell. Apple Silicon installs
 					# to /opt/homebrew, Intel to /usr/local — try both.
 					if [ -x /opt/homebrew/bin/brew ]; then
