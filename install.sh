@@ -90,8 +90,37 @@ fi
 
 if [ "$NODE_OK" = false ]; then
 	if [ "$PLATFORM" = "mac" ]; then
+		# If Homebrew isn't present, offer to install it via the official
+		# installer. We don't silently install: the Homebrew installer requires
+		# sudo and modifies the user's shell config, so they need to consent.
+		# After install we source `brew shellenv` so the subsequent
+		# `brew install node@22` line below finds it on PATH in the current
+		# shell (Homebrew's installer otherwise only sets PATH for *new* shells).
 		if ! command -v brew >/dev/null 2>&1; then
-			fail "Homebrew not found. Install from https://brew.sh and re-run, or install Node manually from https://nodejs.org and re-run."
+			info "Homebrew not found. Homebrew is the package manager we'll use to install Node.js."
+			info "It requires your sudo password, and writes a small line to your shell config (~/.zprofile)."
+			printf "  Install Homebrew now? ${BOLD}[y/N]${RESET} "
+			read -r brew_answer <"$PROMPT_FD"
+			case "$brew_answer" in
+				y|Y|yes|YES)
+					info "Running the official Homebrew installer from https://brew.sh"
+					/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+					# Source brew into the current shell. Apple Silicon installs
+					# to /opt/homebrew, Intel to /usr/local — try both.
+					if [ -x /opt/homebrew/bin/brew ]; then
+						eval "$(/opt/homebrew/bin/brew shellenv)"
+					elif [ -x /usr/local/bin/brew ]; then
+						eval "$(/usr/local/bin/brew shellenv)"
+					fi
+					if ! command -v brew >/dev/null 2>&1; then
+						fail "Homebrew install appeared to complete but 'brew' is still not on PATH. Open a new Terminal window and re-run this installer."
+					fi
+					ok "Homebrew installed"
+					;;
+				*)
+					fail "Aborted. Install Homebrew from https://brew.sh (or Node directly from https://nodejs.org) and re-run."
+					;;
+			esac
 		fi
 		printf "  Install Node.js 22 LTS via Homebrew? ${BOLD}[y/N]${RESET} "
 		read -r answer <"$PROMPT_FD"
