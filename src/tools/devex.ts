@@ -5,10 +5,31 @@ import { PulseApiClient } from '../api/client';
 /**
  * DevEx (Developer Experience) survey endpoints.
  *
- * BE requires `range` for both survey + comments endpoints even though the OpenAPI
- * spec marks it optional. We default to "30 days" to keep the tool usable.
+ * BE requires `range` for both survey + comments endpoints even though the
+ * OpenAPI spec marks it optional. We default to "30 days" to keep the tool
+ * usable.
  *
- * Note: DevEx uses "4 months" as a range value (unlike other tools which use "1 year").
+ * # Range value mapping
+ *
+ * The Pulse DevEx API expects English-phrase range values ("last 1 month",
+ * "last 3 months", "last 1 year") rather than the compact form
+ * ("30 days", "4 months", "1 year") used elsewhere in Pulse. We keep the
+ * compact form as the public MCP-facing enum for consistency with the rest
+ * of the toolset, and translate to the API form just before sending.
+ *
+ * "7 days" is not exposed for DevEx: the API rejects it and silently
+ * widening to "last 1 month" would mislead callers. The API additionally
+ * supports "last 9 months", which we don't expose — there's no equivalent
+ * compact-form value, and the 4-month / 1-year buckets cover the common
+ * case.
+ *
+ * # customRange exclusivity
+ *
+ * The API rejects requests that send both `range` and `customRange` (it
+ * surfaces as the same 400 "Value of Range must be one of …" message
+ * regardless of whether the caller supplied a `customRange`). When the
+ * caller supplies a `customRange`, we omit `range` from the outbound
+ * query so the API treats it as a pure custom window.
  */
 
 const SURVEY_QUESTION_TYPES = [
@@ -29,7 +50,34 @@ const SURVEY_QUESTION_TYPES = [
 
 type SurveyQuestionType = (typeof SURVEY_QUESTION_TYPES)[number];
 
-const RANGE_VALUES = ['7 days', '30 days', '4 months', '1 year'] as const;
+/**
+ * Public MCP-facing range values. Compact-form, consistent with the rest of
+ * the Pulse MCP toolset. Translated to API-form by `toApiRange()` below.
+ */
+const RANGE_VALUES = ['30 days', '4 months', '1 year'] as const;
+type RangeValue = (typeof RANGE_VALUES)[number];
+
+/** Compact-form MCP enum → Pulse API's English-phrase enum. */
+const RANGE_API_FORM: Record<RangeValue, string> = {
+	'30 days': 'last 1 month',
+	'4 months': 'last 3 months',
+	'1 year': 'last 1 year',
+};
+
+/**
+ * Build the outbound `range` / `customRange` query pair for a DevEx call.
+ * When `customRange` is supplied, `range` is dropped from the query so the
+ * API treats it as a pure custom window.
+ */
+function buildRangeQuery(
+	range: RangeValue,
+	customRange: string[] | undefined
+): { range?: string; customRange?: string[] } {
+	if (customRange && customRange.length > 0) {
+		return { customRange };
+	}
+	return { range: RANGE_API_FORM[range] };
+}
 
 const DevExSurveyInput = z.object({
 	projectId: z.string().uuid(),
@@ -51,7 +99,7 @@ export const getDevExSurveyTool: ToolDefinition<typeof DevExSurveyInput> = {
 		ctx.api.request({
 			method: 'GET',
 			path: `/devex/${args.projectId}/survey/${args.surveyQuestionType}`,
-			query: { range: args.range, customRange: args.customRange },
+			query: buildRangeQuery(args.range, args.customRange),
 		}),
 };
 
@@ -73,8 +121,7 @@ export const getDevExCommentsTool: ToolDefinition<typeof DevExCommentsInput> = {
 			method: 'GET',
 			path: `/devex/${args.projectId}/survey/${args.surveyQuestionType}/comments`,
 			query: {
-				range: args.range,
-				customRange: args.customRange,
+				...buildRangeQuery(args.range, args.customRange),
 				page: args.page,
 				limit: args.limit,
 			},
@@ -120,14 +167,14 @@ async function fetchOne(
 	api: PulseApiClient,
 	projectId: string,
 	type: SurveyQuestionType,
-	range: (typeof RANGE_VALUES)[number],
+	range: RangeValue,
 	customRange?: string[]
 ): Promise<Pick<SurveyDimension, 'type' | 'data' | 'score' | 'error'>> {
 	try {
 		const res = (await api.request({
 			method: 'GET',
 			path: `/devex/${projectId}/survey/${type}`,
-			query: { range, customRange },
+			query: buildRangeQuery(range, customRange),
 		})) as { data?: { score?: number } };
 		// Unwrap the envelope: API returns {statusCode, message, data: {...}}.
 		// We return only the inner data so consumers don't end up with data.data.
@@ -141,7 +188,7 @@ async function fetchComments(
 	api: PulseApiClient,
 	projectId: string,
 	type: SurveyQuestionType,
-	range: (typeof RANGE_VALUES)[number],
+	range: RangeValue,
 	customRange: string[] | undefined,
 	limit: number
 ): Promise<{ comments?: unknown; commentsError?: string }> {
@@ -149,7 +196,11 @@ async function fetchComments(
 		const res = (await api.request({
 			method: 'GET',
 			path: `/devex/${projectId}/survey/${type}/comments`,
-			query: { range, customRange, page: 1, limit },
+			query: {
+				...buildRangeQuery(range, customRange),
+				page: 1,
+				limit,
+			},
 		})) as { data?: unknown };
 		return { comments: res?.data ?? res };
 	} catch (err) {
