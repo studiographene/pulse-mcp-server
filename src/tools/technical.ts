@@ -167,15 +167,83 @@ export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput>
 
 const UrlsListInput = z.object({ projectId: z.string().uuid() });
 
+/**
+ * Pulse's BE returns Lighthouse scores in two different shapes for the SAME
+ * data. The list / latest-scan endpoints return arrays of `{category, value,
+ * status}` with display-cased category names ("SEO", "Performance",
+ * "Accessibility", "Best Practices"). The `/details` (history) endpoint
+ * returns objects keyed by camelCase category name (`seo`, `performance`,
+ * `accessibility`, `bestPractices`).
+ *
+ * We normalise everything to the object-keyed form on the way out so
+ * consumers don't need two parsers (Cowork feedback 2026-05-14, issue #7).
+ *
+ * Object-keyed wins because:
+ *   - O(1) access by category — `scan.mobile.performance.value`
+ *   - No reliance on display strings that might drift with the FE
+ *   - Matches the `/details` shape, which is the newer convention
+ */
+const LIGHTHOUSE_CATEGORY_KEYS: Record<string, string> = {
+	SEO: 'seo',
+	Performance: 'performance',
+	Accessibility: 'accessibility',
+	'Best Practices': 'bestPractices',
+};
+
+function lighthouseCategoryToKey(display: string): string {
+	return (
+		LIGHTHOUSE_CATEGORY_KEYS[display] ??
+		display.toLowerCase().replace(/\s+([a-z])/g, (_, c) => c.toUpperCase())
+	);
+}
+
+/** Converts the array form to the canonical object-keyed form. */
+function collectLighthouseArray(
+	rows: unknown[]
+): Record<string, { value: number; status: string }> {
+	const collected: Record<string, { value: number; status: string }> = {};
+	for (const entry of rows) {
+		const e = entry as
+			| { category?: unknown; value?: unknown; status?: unknown }
+			| undefined;
+		if (e && typeof e.category === 'string') {
+			collected[lighthouseCategoryToKey(e.category)] = {
+				value: typeof e.value === 'number' ? e.value : 0,
+				status: typeof e.status === 'string' ? e.status : '',
+			};
+		}
+	}
+	return collected;
+}
+
+function normaliseLighthouseShape<T>(value: T): T {
+	if (Array.isArray(value)) {
+		return value.map(normaliseLighthouseShape) as unknown as T;
+	}
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			const isPlatformArray = (k === 'mobile' || k === 'desktop') && Array.isArray(v);
+			out[k] = isPlatformArray
+				? collectLighthouseArray(v as unknown[])
+				: normaliseLighthouseShape(v);
+		}
+		return out as unknown as T;
+	}
+	return value;
+}
+
 export const listProjectUrlsTool: ToolDefinition<typeof UrlsListInput> = {
 	name: 'pulse_list_project_urls',
 	description: 'List URLs registered for page-speed scanning. (See instructions.ts.)',
 	inputSchema: UrlsListInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
+	handler: async (args, ctx) => {
+		const raw = await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/urls`,
-		}),
+		});
+		return normaliseLighthouseShape(raw);
+	},
 };
 
 const UrlDetailInput = z.object({
@@ -190,16 +258,21 @@ const UrlDetailInput = z.object({
 
 export const getUrlScanTool: ToolDefinition<typeof UrlDetailInput> = {
 	name: 'pulse_get_url_scan',
-	description: 'Page-speed / Lighthouse results for one URL. (See instructions.ts.)',
+	description:
+		'Page-speed / Lighthouse results for one URL. mobile/desktop are always ' +
+		'returned as objects keyed by category (seo, performance, accessibility, ' +
+		'bestPractices) regardless of includeDetails. (See instructions.ts.)',
 	inputSchema: UrlDetailInput,
-	handler: async (args, ctx) =>
-		ctx.api.request({
+	handler: async (args, ctx) => {
+		const raw = await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/url/${args.projectUrlId}${
 				args.includeDetails ? '/details' : ''
 			}`,
 			query: args.includeDetails ? { range: args.range } : undefined,
-		}),
+		});
+		return normaliseLighthouseShape(raw);
+	},
 };
 
 // pulse_get_page_speed_scan was removed: it fetched a single historic scan by id, but

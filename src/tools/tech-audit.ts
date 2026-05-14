@@ -17,6 +17,37 @@ import { summariseLongArrays } from './util/compact';
  * every branch enumerated.
  */
 
+/** True when a value is a non-array empty `{}` object. */
+function isEmptyObject(v: unknown): boolean {
+	return (
+		!!v &&
+		typeof v === 'object' &&
+		!Array.isArray(v) &&
+		Object.keys(v as Record<string, unknown>).length === 0
+	);
+}
+
+/**
+ * Walks the tech-audit response and removes any `tools` field whose value is
+ * an empty object. Surgical (doesn't touch `tools` arrays, or `tools` objects
+ * that actually carry data — once the BE starts populating them they will
+ * pass through unchanged). See Cowork feedback 2026-05-14, issue #19.
+ */
+function dropEmptyToolsField<T>(value: T): T {
+	if (Array.isArray(value)) return value.map(dropEmptyToolsField) as unknown as T;
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			const skip = k === 'tools' && isEmptyObject(v);
+			if (!skip) {
+				out[k] = dropEmptyToolsField(v);
+			}
+		}
+		return out as unknown as T;
+	}
+	return value;
+}
+
 const TechAuditInput = z.object({
 	projectId: z.string().uuid(),
 	ref: z
@@ -54,6 +85,12 @@ export const getTechAuditTool: ToolDefinition<typeof TechAuditInput> = {
 				workflowFilename: args.workflowFilename,
 			},
 		});
-		return args.responseFormat === 'full' ? raw : summariseLongArrays(raw);
+		// Drop the empty `tools` field — the BE returns `tools: {}` for every
+		// repo currently (feature not implemented), so it adds noise without
+		// any signal. Will reappear automatically once the BE starts populating
+		// it. See Cowork feedback 2026-05-14, issue #19.
+		const cleaned = dropEmptyToolsField(raw);
+		return args.responseFormat === 'full' ? cleaned : summariseLongArrays(cleaned);
 	},
 };
+

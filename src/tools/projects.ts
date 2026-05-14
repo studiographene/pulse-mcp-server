@@ -49,7 +49,15 @@ export const getProjectTool: ToolDefinition<typeof GetProjectInput> = {
 		// Also strip avatar URLs from any remaining user-shaped objects.
 		const inner = raw?.data ?? raw;
 		const { members: _drop, ...rest } = inner as { members?: unknown };
-		const stripped = stripAvatarUrls(rest);
+		const stripped = stripAvatarUrls(rest) as Record<string, unknown>;
+		// Project descriptions are often whitespace-only (" ") in Jira/Pulse
+		// when no description has been set. Trim and treat whitespace-only as
+		// missing so consumers don't display a single space as if it were
+		// content. See Cowork feedback 2026-05-14, issue #16.
+		if (typeof stripped.description === 'string') {
+			const trimmed = stripped.description.trim();
+			stripped.description = trimmed === '' ? null : trimmed;
+		}
 		return raw?.data
 			? { ...raw, data: { ...stripped, _membersNote: 'Use pulse_list_project_members for team list.' } }
 			: { ...stripped, _membersNote: 'Use pulse_list_project_members for team list.' };

@@ -347,6 +347,27 @@ const MEMBER_RCA_PATH: Record<(typeof MEMBER_RCA_VARIANTS)[number], string> = {
 	trends: '/activity/rca/trends',
 };
 
+/**
+ * Walks an RCA response and prefixes any bare-numeric `rcaId` field with
+ * `jira_rca_`. Idempotent: already-prefixed values pass through unchanged.
+ * See Cowork feedback 2026-05-14, issue #30.
+ */
+function prefixRcaIds<T>(value: T): T {
+	if (Array.isArray(value)) return value.map(prefixRcaIds) as unknown as T;
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			if (k === 'rcaId' && typeof v === 'string' && /^\d+$/.test(v)) {
+				out[k] = `jira_rca_${v}`;
+			} else {
+				out[k] = prefixRcaIds(v);
+			}
+		}
+		return out as unknown as T;
+	}
+	return value;
+}
+
 export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 	name: 'pulse_get_member_rca',
 	description:
@@ -371,7 +392,7 @@ export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 			);
 		}
 
-		return ctx.api.request({
+		const res = await ctx.api.request({
 			method: 'GET',
 			path: MEMBER_RCA_PATH[args.variant],
 			query: {
@@ -382,5 +403,9 @@ export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 				category: args.category,
 			},
 		});
+		// Prefix bare-numeric `rcaId` strings with `jira_rca_` so they match the
+		// `jira_sprint_*`, `jira_release_*` etc convention used elsewhere in the
+		// Pulse data model.
+		return prefixRcaIds(res);
 	},
 };

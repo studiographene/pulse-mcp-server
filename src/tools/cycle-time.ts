@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ToolDefinition } from './types';
 import { PulseApiClient } from '../api/client';
 import { recentSprintIds } from '../utils/sprint-context';
-import { summariseLongArrays } from './util/compact';
+import { summariseLongArrays, stripAvatarUrls } from './util/compact';
 
 /**
  * Cycle time — 3 variants across 3 endpoints with different param contracts:
@@ -159,7 +159,10 @@ async function handleDetails(
 		);
 		out = { ...res, data: sorted };
 	}
-	return args.responseFormat === 'full' ? out : summariseLongArrays(out);
+	if (args.responseFormat === 'full') return out;
+	// Summary mode: strip per-ticket avatar URLs (assignee + reporter on every
+	// row blow up the payload by ~600 bytes each) AND collapse the rows array.
+	return summariseLongArrays(stripAvatarUrls(out));
 }
 
 export const getCycleTimeTool: ToolDefinition<typeof CycleTimeInput> = {

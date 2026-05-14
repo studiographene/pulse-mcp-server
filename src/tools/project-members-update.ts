@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
+import { stripAvatarUrls } from './util/compact';
 
 /**
  * The only write tool in v1: update project team members.
@@ -92,7 +93,11 @@ export const proposeMemberChangesTool: ToolDefinition<typeof MemberChangeInput> 
 		const diff = computeDiff(ids, args.addUserIds, args.removeUserIds);
 		return {
 			project: { id: project.id, name: project.name },
-			currentMembers: ids.map((id) => byId[id]),
+			// Strip avatar URLs from the team list — each member object otherwise
+			// carries a ~600-char signed Cloudinary URL that no LLM consumer uses
+			// and which bloats the payload by ~12k chars on a 20-person team
+			// (Cowork feedback 2026-05-14, issue #28).
+			currentMembers: stripAvatarUrls(ids.map((id) => byId[id])),
 			diff,
 			note: diff.unchanged
 				? 'No changes — the proposed add/remove set is already reflected in the current team.'
