@@ -137,8 +137,17 @@ if [ "$NODE_OK" = false ]; then
 		case "$answer" in
 			y|Y|yes|YES)
 				info "Running: brew install node@22"
-				brew install node@22
-				brew link --overwrite node@22 || true
+				# Critical: redirect stdin to /dev/null on every brew
+				# subprocess. When this script is invoked via curl|bash,
+				# bash is streaming the script from the curl pipe. Any
+				# subprocess we spawn inherits that pipe as stdin and can
+				# accidentally consume script bytes (we hit this in
+				# real-world testing — Cathryn's first install run got to
+				# "Node installed" then bash hit unexpected EOF and exited
+				# before reaching the token prompt). Brew doesn't need
+				# stdin, so we close it off explicitly.
+				brew install node@22 </dev/null
+				brew link --overwrite node@22 </dev/null || true
 				ok "Node installed"
 				;;
 			*)
