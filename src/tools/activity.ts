@@ -203,6 +203,7 @@ function buildMemberMetricQuery(args: MemberMetricArgs): Record<string, unknown>
 
 interface MemberContext {
 	projectIds: string[];
+	projectNames: string[];
 	repoIds: string[];
 }
 
@@ -233,6 +234,7 @@ async function getMemberContext(
 		data?: {
 			projects?: Array<{
 				id?: string;
+				name?: string;
 				repositories?: Array<{ id?: string }>;
 			}>;
 		};
@@ -241,12 +243,52 @@ async function getMemberContext(
 	const projectIds = projects
 		.map((p) => p?.id)
 		.filter((id): id is string => typeof id === 'string');
+	const projectNames = projects
+		.map((p) => p?.name)
+		.filter((n): n is string => typeof n === 'string');
 	const repoIds = projects
 		.flatMap((p) => p?.repositories ?? [])
 		.map((r) => r?.id)
 		.filter((id): id is string => typeof id === 'string');
 	// De-dupe — a repo could appear under more than one project.
-	return { projectIds, repoIds: Array.from(new Set(repoIds)) };
+	return { projectIds, projectNames, repoIds: Array.from(new Set(repoIds)) };
+}
+
+/**
+ * Loose project-name matcher. Pulse stores names inconsistently across
+ * endpoints — profile may say "Locaria (T&M)" while FTP graphData says
+ * "Locaria T&M". Strip non-alphanumeric and lowercase for comparison.
+ */
+function normaliseProjectName(name: string): string {
+	return name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * FTP response validator. Catches the BE concurrency bug (PX-3685) where
+ * a member's FTP response carries sprints from projects they aren't on.
+ *
+ * Returns the list of unexpected project names in the response, or `[]`
+ * if everything aligns with `expectedNames`. Empty `expectedNames` means
+ * the caller passed projectIds[] explicitly — we can't validate without
+ * the matching names, so we skip.
+ */
+export function findUnexpectedFtpProjects(
+	response: unknown,
+	expectedNames: string[]
+): string[] {
+	if (expectedNames.length === 0) return [];
+	const expected = new Set(expectedNames.map(normaliseProjectName));
+	const graphData =
+		(response as { data?: { graphData?: Array<{ projectName?: string }> } })?.data
+			?.graphData ?? [];
+	const seen = new Set<string>();
+	for (const row of graphData) {
+		const name = row?.projectName;
+		if (typeof name === 'string' && !expected.has(normaliseProjectName(name))) {
+			seen.add(name);
+		}
+	}
+	return Array.from(seen);
 }
 
 /**
@@ -298,11 +340,31 @@ export const getMemberMetricTool: ToolDefinition<typeof MemberMetricInput> = {
 				? args.projectIds
 				: memberCtx?.projectIds;
 
-		return ctx.api.request({
+		const response = await ctx.api.request({
 			method: 'GET',
 			path: resolveMemberMetricPath(args),
 			query: { ...buildMemberMetricQuery(args), repoIds, projectIds },
 		});
+
+		// FTP cross-pollination guard (PX-3685). When the BE leaks another
+		// member's data into this response, the graphData carries sprints
+		// from projects the member isn't on. Compare against the names we
+		// pulled from their profile — if anything unexpected slipped in,
+		// throw a clear error rather than returning bogus stats.
+		if (args.category === 'FTP' && memberCtx?.projectNames?.length) {
+			const unexpected = findUnexpectedFtpProjects(response, memberCtx.projectNames);
+			if (unexpected.length > 0) {
+				throw new Error(
+					`pulse_get_member_metric: FTP response contained sprints from project(s) ` +
+						`[${unexpected.join(', ')}] that are not on this member's profile. ` +
+						'This is a known Pulse BE concurrency bug (PX-3685) where another ' +
+						"member's response leaks across a shared connection. Retry the call " +
+						'(serially is safest); if it persists, the BE may need a restart.'
+				);
+			}
+		}
+
+		return response;
 	},
 };
 

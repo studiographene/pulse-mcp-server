@@ -1,6 +1,49 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import http from 'http';
+import https from 'https';
 import { AuthProvider, TokenStore } from '../auth/types';
 import { RequestOptions, ReissueTokenResponse } from './types';
+
+/**
+ * Cap on simultaneous in-flight Pulse requests.
+ *
+ * Empirically (PX-3685, May 2026) the Pulse BE leaks per-request context
+ * across concurrent connections: 40 parallel `pulse_get_member_metric` calls
+ * produce widespread cross-pollination where User A's response carries User
+ * B's project/sprint data. The bug is BE-side, but the MCP can keep load
+ * below the threshold where it manifests. Empirically 6 is safe; 10+ starts
+ * triggering occasional pollution.
+ *
+ * Pair with `keepAlive: false` below — connection reuse appears to be the
+ * vector by which pollution leaks between requests.
+ */
+const MAX_CONCURRENT_REQUESTS = 6;
+
+/**
+ * Tiny in-house concurrency limiter. Resolves the gate when an in-flight
+ * slot frees up; FIFO order. Avoids adding p-limit as a runtime dep for
+ * ~20 LOC of logic. Closure-based to keep the file at one class
+ * (lint: max-classes-per-file).
+ */
+function createLimiter(max: number): <T>(fn: () => Promise<T>) => Promise<T> {
+	let active = 0;
+	const queue: Array<() => void> = [];
+	return async function run<T>(fn: () => Promise<T>): Promise<T> {
+		if (active >= max) {
+			await new Promise<void>((resolve) => {
+				queue.push(resolve);
+			});
+		}
+		active += 1;
+		try {
+			return await fn();
+		} finally {
+			active -= 1;
+			const next = queue.shift();
+			if (next) next();
+		}
+	};
+}
 
 /**
  * Serialises query params in the shape Pulse's BE expects:
@@ -45,15 +88,27 @@ export interface PulseApiClientOptions {
 export class PulseApiClient {
 	private readonly http: AxiosInstance;
 
+	private readonly runLimited = createLimiter(MAX_CONCURRENT_REQUESTS);
+
 	public constructor(private readonly opts: PulseApiClientOptions) {
 		this.http = axios.create({
 			baseURL: opts.baseUrl,
 			timeout: opts.timeoutMs ?? 60_000,
+			// Force a fresh TCP connection per request. The Pulse BE leaks
+			// per-request context across keep-alive connections (PX-3685);
+			// disabling pooling makes each call isolated at the network layer
+			// at the cost of a TLS handshake per request — acceptable for a
+			// human-driven MCP, not for high-RPS service traffic.
+			httpAgent: new http.Agent({ keepAlive: false }),
+			httpsAgent: new https.Agent({ keepAlive: false }),
 		});
 	}
 
 	public async request<T = unknown>(options: RequestOptions): Promise<T> {
-		const response = await this.executeWithRetry<T>(options);
+		// Gate every outbound request behind the limiter. The limiter is
+		// per-client (so per-MCP-process); we don't share state with any
+		// other consumer of the BE.
+		const response = await this.runLimited(() => this.executeWithRetry<T>(options));
 		return response.data;
 	}
 
