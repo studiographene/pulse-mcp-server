@@ -7,17 +7,16 @@ import { RequestOptions, ReissueTokenResponse } from './types';
 /**
  * Cap on simultaneous in-flight Pulse requests.
  *
- * Empirically (PX-3685, May 2026) the Pulse BE leaks per-request context
- * across concurrent connections: 40 parallel `pulse_get_member_metric` calls
- * produce widespread cross-pollination where User A's response carries User
- * B's project/sprint data. The bug is BE-side, but the MCP can keep load
- * below the threshold where it manifests. Empirically 6 is safe; 10+ starts
- * triggering occasional pollution.
- *
- * Pair with `keepAlive: false` below — connection reuse appears to be the
- * vector by which pollution leaks between requests.
+ * Originally introduced (PX-3685, May 2026) as a tight cap of 6 to keep the
+ * MCP below the threshold at which a BE singleton bug leaked one user's
+ * response data into another's. That bug was fixed in pulse-data-integration#1672
+ * (per-request `responseParser` factory) and verified across two 40+
+ * parallel-call sweeps with zero cross-pollination. The cap is now a
+ * defensive backstop against accidental fan-out (e.g. an agent that maps
+ * over the whole org) rather than a load-shedding measure — 20 leaves plenty
+ * of headroom for normal use without ever firing a thundering herd at the BE.
  */
-const MAX_CONCURRENT_REQUESTS = 6;
+const MAX_CONCURRENT_REQUESTS = 20;
 
 /**
  * Tiny in-house concurrency limiter. Resolves the gate when an in-flight
@@ -94,11 +93,13 @@ export class PulseApiClient {
 		this.http = axios.create({
 			baseURL: opts.baseUrl,
 			timeout: opts.timeoutMs ?? 60_000,
-			// Force a fresh TCP connection per request. The Pulse BE leaks
-			// per-request context across keep-alive connections (PX-3685);
-			// disabling pooling makes each call isolated at the network layer
-			// at the cost of a TLS handshake per request — acceptable for a
-			// human-driven MCP, not for high-RPS service traffic.
+			// Fresh TCP connection per request. Introduced alongside PX-3685
+			// as a belt-and-braces mitigation when we suspected connection
+			// reuse was part of the pollution vector. The BE root cause has
+			// since been fixed, but the cost is negligible for a human-driven
+			// MCP (one TLS handshake per call) and there's no upside to
+			// connection pooling here — keep the isolation for cheap defence
+			// against any future shared-state regressions.
 			httpAgent: new http.Agent({ keepAlive: false }),
 			httpsAgent: new https.Agent({ keepAlive: false }),
 		});
