@@ -117,31 +117,109 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 };
 
 const VersionUpgradesInput = TscBaseInput.extend({
-	includeDetails: z.boolean().default(false),
+	view: z
+		.enum(['rollup', 'breakdown'])
+		.optional()
+		.describe(
+			'rollup = the headline card on the FE: counts by severity bucket ' +
+				'({critical, major, minor, uptoDate, total}). breakdown = the ' +
+				'per-library table on the FE: every out-of-date library with its ' +
+				'current/latest version, severity (region), and `releasedDaysAgo`. ' +
+				'When omitted, defaults to "rollup" unless includeDetails=true is ' +
+				'passed (the legacy parameter, kept for backwards compatibility).'
+		),
+	includeDetails: z
+		.boolean()
+		.optional()
+		.describe(
+			'Legacy: prefer `view` instead. includeDetails=true is equivalent to ' +
+				'view="breakdown". If both are set, `view` wins.'
+		),
 	apiVersion: z.enum(['default', 'v1', 'v2']).default('v2'),
 	responseFormat: z
 		.enum(['summary', 'full'])
 		.default('summary')
 		.describe(
-			'Details variant only. Default "summary" collapses long dependency lists into ' +
-				'{ count, sample, truncated } — version_upgrades/details easily exceeds LLM ' +
-				'token budgets even with small `limit`. Use "full" when you explicitly need ' +
+			'breakdown view only. Default "summary" collapses long dependency lists into ' +
+				'{ count, sample, truncated } — the breakdown easily exceeds LLM token ' +
+				'budgets even with small `limit`. Use "full" when you explicitly need ' +
 				'every dependency enumerated.'
 		),
 });
 
+/**
+ * Walk a version-upgrades /details response and add a numeric
+ * `releasedDaysAgo` field to every row that has a parseable `releaseDate`.
+ *
+ * The BE only returns `releasedSince` as a human-readable string ("3 days",
+ * "1 week 4 days", "5 months 2 weeks 4 days"). That's unusable for an LLM
+ * trying to honour a query like "released > 15 days ago" — it has to parse
+ * varying English. Adding a clean integer avoids the mis-filter trap that
+ * surfaced in the Cowork rollout (PX-3685 follow-up — see commit message).
+ */
+export function enrichVersionUpgradeRowsWithDaysAgo(
+	response: unknown,
+	now: number = Date.now()
+): unknown {
+	if (!response || typeof response !== 'object') return response;
+
+	const addDaysAgo = (row: Record<string, unknown>): Record<string, unknown> => {
+		const iso = row.releaseDate;
+		if (typeof iso !== 'string') return row;
+		const ms = Date.parse(iso);
+		if (Number.isNaN(ms)) return row;
+		return { ...row, releasedDaysAgo: Math.floor((now - ms) / 86_400_000) };
+	};
+
+	const walk = (value: unknown): unknown => {
+		if (Array.isArray(value)) {
+			// Detail rows are arrays of objects with `releaseDate`. Add the
+			// numeric field to each row. Recurse into nested arrays too.
+			return value.map((item) =>
+				item && typeof item === 'object' && !Array.isArray(item)
+					? addDaysAgo(item as Record<string, unknown>)
+					: walk(item)
+			);
+		}
+		if (value && typeof value === 'object') {
+			const out: Record<string, unknown> = {};
+			for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+				out[k] = walk(v);
+			}
+			return out;
+		}
+		return value;
+	};
+
+	return walk(response);
+}
+
 export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput> = {
 	name: 'pulse_get_version_upgrades',
-	description: 'Out-of-date dependencies (v2 recommended). (See instructions.ts.)',
+	description:
+		'Out-of-date dependencies. Two views: view="rollup" (default) returns the ' +
+		'headline severity buckets {critical, major, minor, uptoDate, total} — same as ' +
+		'the FE\'s headline card. view="breakdown" returns the per-library list — same ' +
+		'as the FE\'s table view — and adds a numeric `releasedDaysAgo` per row so ' +
+		'recency filters ("released > 15 days ago") are exact. NOTE: the BE does NOT ' +
+		'filter by release recency itself — `range` controls the metric-snapshot date, ' +
+		'not when each upstream version was published. Apply recency filters client-side ' +
+		'using `releasedDaysAgo`. (See instructions.ts.)',
 	inputSchema: VersionUpgradesInput,
 	handler: async (args, ctx) => {
+		// Resolve the view. Explicit `view` wins; otherwise legacy `includeDetails`
+		// maps to breakdown; otherwise default to the rollup.
+		const resolvedView: 'rollup' | 'breakdown' =
+			args.view ?? (args.includeDetails ? 'breakdown' : 'rollup');
+		const isBreakdown = resolvedView === 'breakdown';
+
 		const prefixMap: Record<string, string> = { default: '', v1: '/v1', v2: '/v2' };
 		const prefix = prefixMap[args.apiVersion];
 		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
 		const raw = await ctx.api.request({
 			method: 'GET',
 			path: `${prefix}/projects/${args.projectId}/metrics/tsc/version-upgrades${
-				args.includeDetails ? '/details' : ''
+				isBreakdown ? '/details' : ''
 			}`,
 			query: {
 				metric: TSC_METRIC,
@@ -158,10 +236,13 @@ export const getVersionUpgradesTool: ToolDefinition<typeof VersionUpgradesInput>
 				rag: args.rag,
 			},
 		});
-		// Only summarise the /details shape; the summary shape is already dense.
-		return args.includeDetails && args.responseFormat !== 'full'
-			? summariseLongArrays(raw)
-			: raw;
+
+		if (!isBreakdown) return raw;
+
+		// Breakdown view: enrich rows with releasedDaysAgo, then optionally
+		// summary-collapse to stay within LLM token budgets.
+		const enriched = enrichVersionUpgradeRowsWithDaysAgo(raw);
+		return args.responseFormat === 'full' ? enriched : summariseLongArrays(enriched);
 	},
 };
 
