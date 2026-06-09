@@ -14,7 +14,20 @@ import { stripAvatarUrls } from './util/compact';
  * design — a non-engineering caller will see members but not the project rollup.
  */
 
-const ActivityOverviewInput = z.object({});
+const ActivityOverviewInput = z.object({
+	range: z
+		.enum(['7 days', '30 days', '1 year'])
+		.default('30 days')
+		.describe(
+			'Activity window. The `projects` rollup is computed from member activity ' +
+				'within this window. Matches the Pulse FE Activity page date filter.'
+		),
+	customRange: z
+		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+		.length(2)
+		.optional()
+		.describe('Custom [startISO, endISO] window. Overrides range when set.'),
+});
 
 export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInput> = {
 	name: 'pulse_get_activity_overview',
@@ -24,8 +37,15 @@ export const getActivityOverviewTool: ToolDefinition<typeof ActivityOverviewInpu
 		'callers get `projects: []` by design. `organisationMembers` is always populated. ' +
 		'(See instructions.ts.)',
 	inputSchema: ActivityOverviewInput,
-	handler: async (_args, ctx) => {
-		const res = (await ctx.api.request({ method: 'GET', path: '/activity' })) as {
+	handler: async (args, ctx) => {
+		const res = (await ctx.api.request({
+			method: 'GET',
+			path: '/activity',
+			query: {
+				range: args.customRange ? undefined : args.range,
+				customRange: args.customRange,
+			},
+		})) as {
 			data?: { projects?: unknown[] };
 		} & Record<string, unknown>;
 		// Attach an explicit note when the projects rollup is empty so callers
@@ -70,6 +90,20 @@ export const listOrgMembersTool: ToolDefinition<typeof OrgMembersInput> = {
 
 const MemberProfileInput = z.object({
 	userId: z.string().uuid().describe('Pulse user UUID.'),
+	range: z
+		.enum(['7 days', '30 days', '1 year'])
+		.default('30 days')
+		.describe(
+			'Activity window. As of PX-3537 (Jun 2026) the BE returns projects + ' +
+				'repositories the user was ACTIVE IN during this window (Jira ticket ' +
+				"transitions + GitHub commits/PRs), NOT formal project assignments. " +
+				"Default '30 days' matches the Pulse FE Activity page default."
+		),
+	customRange: z
+		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+		.length(2)
+		.optional()
+		.describe('Custom [startISO, endISO] window. Overrides range when set.'),
 });
 
 /** Rewrite DD-MM-YYYY strings to ISO YYYY-MM-DD; pass everything else through. */
@@ -100,6 +134,10 @@ export const getMemberProfileTool: ToolDefinition<typeof MemberProfileInput> = {
 		const res = await ctx.api.request({
 			method: 'GET',
 			path: `/activity/profile/${args.userId}`,
+			query: {
+				range: args.customRange ? undefined : args.range,
+				customRange: args.customRange,
+			},
 		});
 		// BE returns date fields in DD-MM-YYYY for this endpoint while every other
 		// tool returns ISO. Normalise at the edge so callers see one shape. Also
@@ -222,13 +260,35 @@ interface MemberContext {
  * Cached at the tool layer via the api client's request cache (if any);
  * called at most once per tool invocation regardless of category.
  */
+/**
+ * Date scope for auto-fetching member context. Callers (metric / RCA tools)
+ * pass their own range / customRange through so the auto-fetched projectIds
+ * cover the same window as the metric being queried. Without this the
+ * auto-fetch would default to "last 30 days" while the metric asked for
+ * "last year" — giving an empty intersection for anyone whose contributions
+ * are >30 days old.
+ */
+interface MemberContextDateArgs {
+	range?: string;
+	customRange?: string[];
+}
+
 async function getMemberContext(
 	api: ToolContext['api'],
-	userId: string
+	userId: string,
+	dateArgs: MemberContextDateArgs = {}
 ): Promise<MemberContext> {
 	const profile = (await api.request({
 		method: 'GET',
 		path: `/activity/profile/${userId}`,
+		query: {
+			// BE requires range OR customRange since PX-3537. Mirror the metric
+			// tool's date scope so the auto-fetched projectIds match the window
+			// the caller actually cares about. Default to '30 days' when caller
+			// supplied neither — matches the FE.
+			range: dateArgs.customRange ? undefined : (dateArgs.range ?? '30 days'),
+			customRange: dateArgs.customRange,
+		},
 	})) as {
 		data?: {
 			projects?: Array<{
@@ -287,9 +347,14 @@ export const getMemberMetricTool: ToolDefinition<typeof MemberMetricInput> = {
 	handler: async (args, ctx) => {
 		// Auto-fetch repos + projects from the profile when scope is missing —
 		// repo-scoped categories silent-zero on the BE without repoIds[], and
-		// FTP outright rejects empty projectIds[].
+		// FTP outright rejects empty projectIds[]. Inherit this call's date
+		// scope so the auto-fetched set matches the window the metric covers
+		// (BE is now activity-window-scoped per PX-3537).
 		const memberCtx = needsScopeAutoFetch(args)
-			? await getMemberContext(ctx.api, args.userId as string)
+			? await getMemberContext(ctx.api, args.userId as string, {
+					range: args.range,
+					customRange: args.customRange,
+				})
 			: null;
 		const repoIds =
 			args.repoIds && args.repoIds.length > 0 ? args.repoIds : memberCtx?.repoIds;
@@ -375,10 +440,15 @@ export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 	inputSchema: MemberRcaInput,
 	handler: async (args, ctx) => {
 		// Auto-fetch projectIds[] from the member profile when omitted.
+		// Inherit this call's date scope so the auto-fetched set matches the
+		// window the RCA covers (BE is now activity-window-scoped per PX-3537).
 		const needsAutoFetch =
 			(!args.projectIds || args.projectIds.length === 0) && !!args.userId;
 		const memberCtx = needsAutoFetch
-			? await getMemberContext(ctx.api, args.userId as string)
+			? await getMemberContext(ctx.api, args.userId as string, {
+					range: args.range,
+					customRange: args.customRange,
+				})
 			: null;
 		const projectIds =
 			args.projectIds && args.projectIds.length > 0
