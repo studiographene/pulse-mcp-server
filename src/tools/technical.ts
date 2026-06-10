@@ -117,6 +117,24 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 };
 
 const VersionUpgradesInput = TscBaseInput.extend({
+	// Override the base `rag` enum. The shared TscBaseInput is used by
+	// product-security and test-coverage which validate against a different
+	// BE DTO (legacy minor|major|patch|deprecated). The v2 version-upgrades
+	// endpoint validates against critical|major|minor|uptoDate — these are
+	// the same buckets the rollup view exposes, so callers can round-trip:
+	// take a bucket name from the rollup response and use it here to filter
+	// the breakdown view down to just that severity. Mismatching the two
+	// enums made the `critical` bucket completely unfilterable from the MCP
+	// schema layer (rejected before reaching the API).
+	rag: z
+		.enum(['critical', 'major', 'minor', 'uptoDate'])
+		.optional()
+		.describe(
+			'Severity bucket to filter the breakdown view. Same enum as the ' +
+				'rollup response: critical = deprecated or very out of date; ' +
+				'major = major-version drift; minor = minor-version drift; ' +
+				'uptoDate = current. Only meaningful with view="breakdown".'
+		),
 	view: z
 		.enum(['rollup', 'breakdown'])
 		.optional()
