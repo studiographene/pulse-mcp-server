@@ -16,7 +16,12 @@ import {
 	getUrlScanTool,
 } from './technical';
 import { getCycleTimeTool } from './cycle-time';
-import { getDevExSurveyTool, getDevExCommentsTool, getDevExSummaryTool } from './devex';
+import {
+	getDevExSurveyTool,
+	getDevExCommentsTool,
+	getDevExSummaryTool,
+	getDevExResponseRatesTool,
+} from './devex';
 import {
 	getActivityOverviewTool,
 	listOrgMembersTool,
@@ -83,6 +88,7 @@ export const tools: AnyToolDefinition[] = [
 	annotate(getDevExSurveyTool),
 	annotate(getDevExCommentsTool),
 	annotate(getDevExSummaryTool),
+	annotate(getDevExResponseRatesTool),
 	annotate(getActivityOverviewTool),
 	annotate(listOrgMembersTool),
 	annotate(getMemberProfileTool),
