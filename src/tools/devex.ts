@@ -305,3 +305,69 @@ export const getDevExSummaryTool: ToolDefinition<typeof DevExSummaryInput> = {
 		return { summary, dimensions };
 	},
 };
+
+/**
+ * Response-rate range values. The BE accepts FOUR presets for this endpoint
+ * — `last 1 month / last 3 months / last 9 months / last 1 year` — so the
+ * MCP enum has one more bucket than the survey / comments endpoints.
+ * Same compact-form convention as the rest of the toolset; translated to
+ * API-form just before sending.
+ */
+const RESPONSE_RATE_RANGE_VALUES = ['30 days', '4 months', '9 months', '1 year'] as const;
+type ResponseRateRangeValue = (typeof RESPONSE_RATE_RANGE_VALUES)[number];
+
+const RESPONSE_RATE_RANGE_API_FORM: Record<ResponseRateRangeValue, string> = {
+	'30 days': 'last 1 month',
+	'4 months': 'last 3 months',
+	'9 months': 'last 9 months',
+	'1 year': 'last 1 year',
+};
+
+const DevExResponseRatesInput = z.object({
+	projectIds: z
+		.array(z.string().uuid())
+		.min(1)
+		.describe(
+			'Projects to plot, one line per project on the FE. At least one required. ' +
+				'For a single-project view (matches the FE\'s default project page), pass one. ' +
+				'For a portfolio comparison, pass several.'
+		),
+	range: z
+		.enum(RESPONSE_RATE_RANGE_VALUES)
+		.default('4 months')
+		.describe(
+			"Preset window. Matches the FE date filter on the DevEx Response Rates page. " +
+				"Default '4 months' matches the FE default."
+		),
+	customRange: z
+		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+		.length(2)
+		.optional()
+		.describe('Custom [startISO, endISO] window. Overrides range when set.'),
+});
+
+export const getDevExResponseRatesTool: ToolDefinition<typeof DevExResponseRatesInput> = {
+	name: 'pulse_get_devex_response_rates',
+	description:
+		'DevEx survey response rates over time. Three views in one response: ' +
+		'`trends` (per-month rate per project, the line chart on the FE); ' +
+		'`byProject` (pooled rate per project across the whole window, the side panel); ' +
+		'`allProjects` (mean of each project\'s pooled rate, the headline number). ' +
+		'Each rate is a 0–100 percentage. Use when a user asks how well a team is engaging ' +
+		'with surveys, why a DevEx score is unreliable (low response rate = small sample), ' +
+		'or to compare engagement across projects. (See instructions.ts.)',
+	inputSchema: DevExResponseRatesInput,
+	handler: async (args, ctx) => {
+		const rangeQuery = args.customRange
+			? { customRange: args.customRange }
+			: { range: RESPONSE_RATE_RANGE_API_FORM[args.range] };
+		return ctx.api.request({
+			method: 'GET',
+			path: '/devex/response-rate/graph',
+			query: {
+				projectIds: args.projectIds,
+				...rangeQuery,
+			},
+		});
+	},
+};
