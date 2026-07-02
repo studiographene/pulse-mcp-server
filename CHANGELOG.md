@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.4.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.3.0...v1.4.0) (2026-07-02)
+
+
+### Features
+
+* **devex:** add pulse_get_devex_response_rates tool ([#39](https://github.com/studiographene/pulse-mcp-server/issues/39)) ([708daea](https://github.com/studiographene/pulse-mcp-server/commit/708daea8471a1765d80c549d55a008646738b8a7))
+* **PX-3537:** enrich individual + QA responses with self-describing metadata ([#40](https://github.com/studiographene/pulse-mcp-server/issues/40)) ([d844f9d](https://github.com/studiographene/pulse-mcp-server/commit/d844f9d8ce5ceba6ee6ec86e7a10a230e3648347))
+* **PX-3685:** declare tool annotations for permission grouping ([#33](https://github.com/studiographene/pulse-mcp-server/issues/33)) ([0ccb574](https://github.com/studiographene/pulse-mcp-server/commit/0ccb574f1934de1802026616ecf51c875801f03b))
+* **PX-3685:** install from public git repo (no npm publish needed) ([f90f775](https://github.com/studiographene/pulse-mcp-server/commit/f90f77599fd2f5372a1cf66409f1a6849a88d5de))
+* **PX-3685:** install from public git repo (no npm publish needed) ([#23](https://github.com/studiographene/pulse-mcp-server/issues/23)) ([a0a9ff1](https://github.com/studiographene/pulse-mcp-server/commit/a0a9ff11cdc9b4f9bf86eabbd25761530d176da8))
+* **PX-3685:** one-line install script + simpler INSTALL.md ([15399af](https://github.com/studiographene/pulse-mcp-server/commit/15399afaa6ac1bbd6f34bc8efeff90b916feb625))
+* **PX-3685:** one-line install script + simpler INSTALL.md ([#18](https://github.com/studiographene/pulse-mcp-server/issues/18)) ([23433bc](https://github.com/studiographene/pulse-mcp-server/commit/23433bc20416d24c850510e273da131f0da1880c))
+
+
+### Bug Fixes
+
+* **PX-3537:** align version-upgrades rag enum with v2 BE accepted values ([#38](https://github.com/studiographene/pulse-mcp-server/issues/38)) ([7c34ebb](https://github.com/studiographene/pulse-mcp-server/commit/7c34ebbb20f2fe845f1967fa4d0d82c2acff15e0))
+* **PX-3537:** pass date range to /activity/profile and /activity ([#37](https://github.com/studiographene/pulse-mcp-server/issues/37)) ([3e0e711](https://github.com/studiographene/pulse-mcp-server/commit/3e0e711174e26174e448878608c64f7ed11a4a63))
+* **PX-3685:** batch of 10 fixes from Cowork v1.3 smoke-test feedback ([#29](https://github.com/studiographene/pulse-mcp-server/issues/29)) ([32bf65f](https://github.com/studiographene/pulse-mcp-server/commit/32bf65fdcf7fede2db9143af1e5d5d4e96718c3d))
+* **PX-3685:** correct curl|bash tty handling (per-read redirect, not global exec) ([#27](https://github.com/studiographene/pulse-mcp-server/issues/27)) ([095c599](https://github.com/studiographene/pulse-mcp-server/commit/095c599efbdb7c00141bd3c597a572a75338b378))
+* **PX-3685:** default dev-process branch to ['main'] for every category ([8eb1a52](https://github.com/studiographene/pulse-mcp-server/commit/8eb1a52785324f0f51999b3c15021fcbed028531))
+* **PX-3685:** default dev-process branch to ['main'] for every category ([#19](https://github.com/studiographene/pulse-mcp-server/issues/19)) ([2da5075](https://github.com/studiographene/pulse-mcp-server/commit/2da50752d6808574d10a87ff451b9714203d6416))
+* **PX-3685:** give Homebrew installer a TTY so it can prompt for sudo ([#31](https://github.com/studiographene/pulse-mcp-server/issues/31)) ([bfe8a2c](https://github.com/studiographene/pulse-mcp-server/commit/bfe8a2ce3d36f575133cc64df88d92095f2995e8))
+* **PX-3685:** install.sh offers to install Homebrew if missing ([#30](https://github.com/studiographene/pulse-mcp-server/issues/30)) ([cfc9e07](https://github.com/studiographene/pulse-mcp-server/commit/cfc9e0719fa8f66dcb4bfc714c5aea3de062cf68))
+* **PX-3685:** make install.sh prompts work via curl | bash ([#25](https://github.com/studiographene/pulse-mcp-server/issues/25)) ([5dbb002](https://github.com/studiographene/pulse-mcp-server/commit/5dbb002325d9a34e1b4d15459bb7ce5d46b4327c))
+* **PX-3685:** make the token-paste prompt impossible to miss ([#26](https://github.com/studiographene/pulse-mcp-server/issues/26)) ([e7f3a8c](https://github.com/studiographene/pulse-mcp-server/commit/e7f3a8ca9db6480fee3f641e28393941eabff5db))
+* **PX-3685:** mitigate BE cross-pollination on concurrent member metrics ([#34](https://github.com/studiographene/pulse-mcp-server/issues/34)) ([0bf35b2](https://github.com/studiographene/pulse-mcp-server/commit/0bf35b2ef0c671db148cec6a9e94a7ed873b3d10))
+* **PX-3685:** pre-public-release fix-ups ([1926b04](https://github.com/studiographene/pulse-mcp-server/commit/1926b04ae65efd8a91d1fc39ea7d8855a11f0d4b))
+* **PX-3685:** pre-public-release fix-ups (F-003, F-007, F-008, F-012) ([#22](https://github.com/studiographene/pulse-mcp-server/issues/22)) ([6b17d79](https://github.com/studiographene/pulse-mcp-server/commit/6b17d79e72fa89f02eebdd67a86ddd640382627a))
+* **PX-3685:** prevent brew subprocesses from eating script stdin ([#32](https://github.com/studiographene/pulse-mcp-server/issues/32)) ([86c9df8](https://github.com/studiographene/pulse-mcp-server/commit/86c9df853e5734881eeb73e6b258663b384526b3))
+* **PX-3685:** remove BE-bug mitigations now the root cause is fixed ([#35](https://github.com/studiographene/pulse-mcp-server/issues/35)) ([f158a82](https://github.com/studiographene/pulse-mcp-server/commit/f158a82794e588e1ed99fdf931cb287686412207))
+* **PX-3685:** translate DevEx range enum to Pulse API form + drop unsupported 7 days ([#28](https://github.com/studiographene/pulse-mcp-server/issues/28)) ([7dfe040](https://github.com/studiographene/pulse-mcp-server/commit/7dfe0402c3bb64ce5eb402ebc0916dcce41765e0))
+* **PX-3685:** version-upgrades tool ergonomics (releasedDaysAgo + view enum) ([#36](https://github.com/studiographene/pulse-mcp-server/issues/36)) ([f1b9e9f](https://github.com/studiographene/pulse-mcp-server/commit/f1b9e9f4154b978cf36571f8209c4793b39d2434))
+
 ## [1.3.0](https://github.com/studiographene/pulse-mcp-server/compare/v1.2.0...v1.3.0) (2026-04-30)
 
 
