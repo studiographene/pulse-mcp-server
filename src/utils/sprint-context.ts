@@ -16,7 +16,7 @@ import { PulseApiClient } from '../api/client';
  * separately. See the audit at PX-3685 v1.3 follow-up.
  */
 
-interface SprintInfo {
+export interface SprintInfo {
 	id: string;
 	name?: string;
 	startDate: string | null;
@@ -61,7 +61,8 @@ function isMeaningfulSprint(s: SprintInfo): boolean {
 /**
  * Fetches the project's Jira sprints across all boards, sorts newest-first by
  * `startDate` (sprints with no startDate sort last), filters out hotfix and
- * very-short sprints, and returns the first N IDs.
+ * very-short sprints, and returns the first N full sprint blocks (id + name +
+ * dates).
  *
  * Filtering rationale: see `isMeaningfulSprint`. If filtering would leave
  * fewer than N sprints, fall back to the unfiltered list — better to return
@@ -69,11 +70,11 @@ function isMeaningfulSprint(s: SprintInfo): boolean {
  *
  * One BE call. Errors propagate so callers can surface them.
  */
-export async function recentSprintIds(
+export async function recentSprintInfos(
 	api: PulseApiClient,
 	projectId: string,
 	n: number
-): Promise<string[]> {
+): Promise<SprintInfo[]> {
 	const raw = (await api.request({
 		method: 'GET',
 		path: `/projects/${projectId}/jira/boards`,
@@ -86,5 +87,55 @@ export async function recentSprintIds(
 	});
 	const filtered = sprints.filter(isMeaningfulSprint);
 	const source = filtered.length >= n ? filtered : sprints;
-	return source.slice(0, n).map((s) => s.id);
+	return source.slice(0, n);
+}
+
+/**
+ * Legacy wrapper that returns just sprint IDs. Prefer `recentSprintInfos`
+ * when the caller needs date/name context.
+ */
+export async function recentSprintIds(
+	api: PulseApiClient,
+	projectId: string,
+	n: number
+): Promise<string[]> {
+	return (await recentSprintInfos(api, projectId, n)).map((s) => s.id);
+}
+
+/**
+ * Reduce a list of sprints to the calendar window they cover: earliest
+ * `startDate` to latest `endDate` (or `startDate` if `endDate` missing).
+ * Returns null when the list is empty or no sprint carries a parseable
+ * date. Callers use this to surface "which calendar window did the
+ * auto-filled sprint list actually span?" — the mismatch between
+ * sprint-scoped endpoints (QA metrics) and date-scoped ones (member
+ * metrics) is a common source of like-for-like comparison confusion.
+ */
+/** Parse ISO string → ms, or null when input is missing/unparseable. */
+function tryParseMs(iso: string | null | undefined): number | null {
+	if (!iso) return null;
+	const ms = Date.parse(iso);
+	return Number.isNaN(ms) ? null : ms;
+}
+
+export function sprintsWindow(
+	sprints: SprintInfo[]
+): { startDate: string; endDate: string } | null {
+	if (sprints.length === 0) return null;
+	const starts = sprints
+		.map((s) => ({ iso: s.startDate ?? null, ms: tryParseMs(s.startDate) }))
+		.filter((x): x is { iso: string; ms: number } => x.iso !== null && x.ms !== null);
+	const ends = sprints
+		.map((s) => {
+			const iso = s.endDate ?? s.startDate ?? null;
+			return { iso, ms: tryParseMs(iso) };
+		})
+		.filter((x): x is { iso: string; ms: number } => x.iso !== null && x.ms !== null);
+	if (starts.length === 0 || ends.length === 0) return null;
+	const earliest = starts.reduce((a, b) => (a.ms < b.ms ? a : b));
+	const latest = ends.reduce((a, b) => (a.ms > b.ms ? a : b));
+	return {
+		startDate: earliest.iso.slice(0, 10),
+		endDate: latest.iso.slice(0, 10),
+	};
 }

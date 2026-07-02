@@ -242,6 +242,8 @@ function buildMemberMetricQuery(args: MemberMetricArgs): Record<string, unknown>
 interface MemberContext {
 	projectIds: string[];
 	repoIds: string[];
+	/** Per-project id → name lookup, for building human-readable `_scope` blocks. */
+	projectNames: Record<string, string>;
 }
 
 /**
@@ -293,6 +295,7 @@ async function getMemberContext(
 		data?: {
 			projects?: Array<{
 				id?: string;
+				name?: string;
 				repositories?: Array<{ id?: string }>;
 			}>;
 		};
@@ -301,12 +304,18 @@ async function getMemberContext(
 	const projectIds = projects
 		.map((p) => p?.id)
 		.filter((id): id is string => typeof id === 'string');
+	const projectNames: Record<string, string> = {};
+	for (const p of projects) {
+		if (typeof p?.id === 'string' && typeof p?.name === 'string') {
+			projectNames[p.id] = p.name;
+		}
+	}
 	const repoIds = projects
 		.flatMap((p) => p?.repositories ?? [])
 		.map((r) => r?.id)
 		.filter((id): id is string => typeof id === 'string');
 	// De-dupe — a repo could appear under more than one project.
-	return { projectIds, repoIds: Array.from(new Set(repoIds)) };
+	return { projectIds, repoIds: Array.from(new Set(repoIds)), projectNames };
 }
 
 /**
@@ -315,6 +324,71 @@ async function getMemberContext(
  * really has zero PRs" without auto-fetching the scope.
  */
 const REPO_SCOPED_CATEGORIES = new Set(['CODE_COMMIT', 'PR', 'PR_COMMENTS', 'LINE_OF_CODE']);
+
+/**
+ * Description of what a per-member call actually queried. Attached to every
+ * response as a top-level `_scope` block so LLM consumers can always cite
+ * (a) which projects/repos were queried, (b) whether the scope was auto-fetched
+ * from the member profile or passed explicitly, and (c) which date window
+ * was used. Kills a class of "why don't the numbers match" confusion where
+ * the model presented a headline without knowing which projects the auto-fetch
+ * picked, or which window resolved.
+ */
+interface ScopeBlock {
+	userId?: string;
+	window: { range?: string; customRange?: string[] };
+	projects: Array<{ id: string; name?: string; source: 'auto-fetched' | 'passed' }>;
+	repos?: Array<{ id: string; source: 'auto-fetched' | 'passed' }>;
+	note?: string;
+}
+
+/** Resolve which IDs were used and whether they came from the caller. */
+function resolveIdsAndSource(
+	passed: string[] | undefined,
+	fallback: string[] | undefined
+): { ids: string[]; source: 'auto-fetched' | 'passed' } {
+	if (passed && passed.length > 0) return { ids: passed, source: 'passed' };
+	return { ids: fallback ?? [], source: 'auto-fetched' };
+}
+
+function buildScopeBlock(args: {
+	userId?: string;
+	range?: string;
+	customRange?: string[];
+	passedProjectIds?: string[];
+	passedRepoIds?: string[];
+	memberCtx: MemberContext | null;
+	includeRepos: boolean;
+}): ScopeBlock {
+	const proj = resolveIdsAndSource(args.passedProjectIds, args.memberCtx?.projectIds);
+	const scope: ScopeBlock = {
+		userId: args.userId,
+		window: args.customRange
+			? { customRange: args.customRange }
+			: { range: args.range ?? '30 days' },
+		projects: proj.ids.map((id) => ({
+			id,
+			name: args.memberCtx?.projectNames?.[id],
+			source: proj.source,
+		})),
+	};
+
+	if (args.includeRepos) {
+		const repo = resolveIdsAndSource(args.passedRepoIds, args.memberCtx?.repoIds);
+		scope.repos = repo.ids.map((id) => ({ id, source: repo.source }));
+	}
+
+	const anyAutoFetched =
+		proj.source === 'auto-fetched' || (args.includeRepos && !args.passedRepoIds?.length);
+	if (anyAutoFetched) {
+		scope.note =
+			'Scope was auto-fetched from the member profile. Since PX-3537 (Jun 2026) ' +
+			'profile projects reflect what the user was ACTIVE IN during the queried window, ' +
+			'NOT formal project assignments. Pass projectIds/repoIds explicitly to override.';
+	}
+
+	return scope;
+}
 
 function needsScopeAutoFetch(args: MemberMetricArgs): boolean {
 	if (!args.userId) return false;
@@ -363,11 +437,25 @@ export const getMemberMetricTool: ToolDefinition<typeof MemberMetricInput> = {
 				? args.projectIds
 				: memberCtx?.projectIds;
 
-		return ctx.api.request({
+		const res = await ctx.api.request({
 			method: 'GET',
 			path: resolveMemberMetricPath(args),
 			query: { ...buildMemberMetricQuery(args), repoIds, projectIds },
 		});
+
+		// Attach a self-describing `_scope` block so callers (LLMs especially)
+		// can always cite which projects/repos + window the numbers came from.
+		// See ScopeBlock docstring.
+		const scope = buildScopeBlock({
+			userId: args.userId,
+			range: args.range,
+			customRange: args.customRange,
+			passedProjectIds: args.projectIds,
+			passedRepoIds: args.repoIds,
+			memberCtx,
+			includeRepos: REPO_SCOPED_CATEGORIES.has(args.category),
+		});
+		return { ...(res as Record<string, unknown>), _scope: scope };
 	},
 };
 
@@ -433,23 +521,114 @@ function prefixRcaIds<T>(value: T): T {
 	return value;
 }
 
+/**
+ * Cap on parallel per-project RCA calls for the `_byProject` breakdown.
+ * At <= this many projects we fan out to give the caller per-project
+ * counts (helps distinguish "filter binds, this project contributes zero"
+ * from "filter broken, all data mixed in"). Beyond the cap we skip the
+ * breakdown and add an explanatory note.
+ */
+const RCA_BY_PROJECT_MAX_FANOUT = 5;
+
+interface RcaByProjectRow {
+	projectId: string;
+	projectName?: string;
+	totalBugs: number;
+}
+
+/**
+ * Fire one aggregate RCA call per projectId in parallel, extract the
+ * per-project total from each. Read-only; adds latency proportional to
+ * projectIds.length, capped by RCA_BY_PROJECT_MAX_FANOUT at the caller.
+ */
+async function fetchRcaByProjectBreakdown(
+	api: ToolContext['api'],
+	baseQuery: Record<string, unknown>,
+	projectIds: string[],
+	projectNames: Record<string, string>
+): Promise<RcaByProjectRow[]> {
+	const results = await Promise.all(
+		projectIds.map(async (projectId) => {
+			try {
+				const single = (await api.request({
+					method: 'GET',
+					path: MEMBER_RCA_PATH.overview,
+					query: { ...baseQuery, projectIds: [projectId] },
+				})) as { data?: { headline?: { totalBugs?: number } } };
+				return {
+					projectId,
+					projectName: projectNames[projectId],
+					totalBugs: single?.data?.headline?.totalBugs ?? 0,
+				};
+			} catch {
+				// One project failing shouldn't blank the whole breakdown.
+				return { projectId, projectName: projectNames[projectId], totalBugs: 0 };
+			}
+		})
+	);
+	return results.sort((a, b) => b.totalBugs - a.totalBugs);
+}
+
+const RCA_SPRINT_ID_META_NOTE =
+	'The `sprintId` field on each `tableData` row is per-row navigation ' +
+	'metadata for the Jira link (`linkToJira`), NOT the query scope. The ' +
+	'query aggregates across the full window in `_scope.window`; the ' +
+	'shared sprintId does not mean the query was scoped to a single sprint.';
+
+/**
+ * Build the per-project breakdown block for a member RCA response.
+ * Only meaningful for `overview` with multiple projects. Returns either the
+ * breakdown, an explanatory note (when fanout was skipped), or neither.
+ */
+async function buildRcaByProjectBlock(
+	api: ToolContext['api'],
+	variant: 'overview' | 'details' | 'trends',
+	projectIds: string[],
+	baseQuery: Record<string, unknown>,
+	projectNames: Record<string, string>
+): Promise<{ byProject?: RcaByProjectRow[]; byProjectNote?: string }> {
+	if (variant !== 'overview' || projectIds.length <= 1) return {};
+	if (projectIds.length > RCA_BY_PROJECT_MAX_FANOUT) {
+		return {
+			byProjectNote:
+				`Per-project breakdown skipped: ${projectIds.length} projects passed ` +
+				`(cap is ${RCA_BY_PROJECT_MAX_FANOUT}). To see per-project counts, ` +
+				`query them individually.`,
+		};
+	}
+	return {
+		byProject: await fetchRcaByProjectBreakdown(api, baseQuery, projectIds, projectNames),
+	};
+}
+
+/**
+ * Auto-fetch memberCtx when caller omitted projectIds but supplied userId.
+ * Returns null when auto-fetch isn't applicable.
+ */
+async function maybeAutoFetchRcaCtx(
+	api: ToolContext['api'],
+	args: { userId?: string; projectIds?: string[]; range?: string; customRange?: string[] }
+): Promise<MemberContext | null> {
+	const needsAutoFetch =
+		(!args.projectIds || args.projectIds.length === 0) && !!args.userId;
+	if (!needsAutoFetch) return null;
+	return getMemberContext(api, args.userId as string, {
+		range: args.range,
+		customRange: args.customRange,
+	});
+}
+
 export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 	name: 'pulse_get_member_rca',
 	description:
-		"Per-member Root Cause Analysis (overview / details / trends). (See instructions.ts.)",
+		"Per-member Root Cause Analysis (overview / details / trends). Response includes " +
+		"a `_scope` block (what was actually queried), a `_byProject` breakdown when " +
+		"multiple projects are queried (up to 5), and a `_meta` note explaining that " +
+		"the `sprintId` field on each tableData row is per-row Jira-link metadata, NOT " +
+		"the query scope. (See instructions.ts.)",
 	inputSchema: MemberRcaInput,
 	handler: async (args, ctx) => {
-		// Auto-fetch projectIds[] from the member profile when omitted.
-		// Inherit this call's date scope so the auto-fetched set matches the
-		// window the RCA covers (BE is now activity-window-scoped per PX-3537).
-		const needsAutoFetch =
-			(!args.projectIds || args.projectIds.length === 0) && !!args.userId;
-		const memberCtx = needsAutoFetch
-			? await getMemberContext(ctx.api, args.userId as string, {
-					range: args.range,
-					customRange: args.customRange,
-				})
-			: null;
+		const memberCtx = await maybeAutoFetchRcaCtx(ctx.api, args);
 		const projectIds =
 			args.projectIds && args.projectIds.length > 0
 				? args.projectIds
@@ -462,20 +641,46 @@ export const getMemberRcaTool: ToolDefinition<typeof MemberRcaInput> = {
 			);
 		}
 
+		const baseQuery = {
+			userId: args.userId,
+			range: args.customRange ? undefined : args.range,
+			customRange: args.customRange,
+			category: args.category,
+		};
+
 		const res = await ctx.api.request({
 			method: 'GET',
 			path: MEMBER_RCA_PATH[args.variant],
-			query: {
-				userId: args.userId,
-				projectIds,
-				range: args.customRange ? undefined : args.range,
-				customRange: args.customRange,
-				category: args.category,
-			},
+			query: { ...baseQuery, projectIds },
 		});
+
+		const { byProject, byProjectNote } = await buildRcaByProjectBlock(
+			ctx.api,
+			args.variant,
+			projectIds,
+			baseQuery,
+			memberCtx?.projectNames ?? {}
+		);
+
+		const scope = buildScopeBlock({
+			userId: args.userId,
+			range: args.range,
+			customRange: args.customRange,
+			passedProjectIds: args.projectIds,
+			memberCtx,
+			includeRepos: false,
+		});
+
 		// Prefix bare-numeric `rcaId` strings with `jira_rca_` so they match the
 		// `jira_sprint_*`, `jira_release_*` etc convention used elsewhere in the
 		// Pulse data model.
-		return prefixRcaIds(res);
+		const prefixed = prefixRcaIds(res) as Record<string, unknown>;
+		return {
+			...prefixed,
+			_scope: scope,
+			...(byProject ? { _byProject: byProject } : {}),
+			...(byProjectNote ? { _byProjectNote: byProjectNote } : {}),
+			_meta: { sprintIdNote: RCA_SPRINT_ID_META_NOTE },
+		};
 	},
 };
