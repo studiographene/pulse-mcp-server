@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ToolDefinition } from './types';
-import { resolveRepoIds } from '../utils/project-context';
+import { resolveRepoIds, resolveDefaultBranch } from '../utils/project-context';
 import { summariseLongArrays } from './util/compact';
 
 /**
@@ -27,20 +27,63 @@ const TscBaseInput = z.object({
 	type: z.enum(['table', 'graph']).optional(),
 	sortKey: z.enum(['repoName', 'libName']).optional(),
 	sortOrder: z.enum(['asc', 'desc']).optional(),
-	rag: z.enum(['major', 'minor', 'patch', 'deprecated']).optional(),
+	// The shared `TscDTO` on the BE validates rag against red|amber|green|deprecated.
+	// The previous enum here (major|minor|patch|deprecated) was copied from the
+	// version-upgrades schema and 400s on these endpoints. VersionUpgradesInput
+	// overrides this with its own v2 enum — see below.
+	rag: z.enum(['red', 'amber', 'green', 'deprecated']).optional(),
 });
 
-const ProductSecurityInput = TscBaseInput.extend({
+/**
+ * Product security accepts a much narrower parameter set than the shared
+ * `TscBaseInput` advertises. The BE's `ProdSecurityDetailDTO` declares only
+ * branch / range / customRange / metric / category / afterKey / repoIds, so
+ * `search`, `page`, `limit`, `sortKey` and `sortOrder` are dropped by NestJS
+ * validation and have never done anything on this endpoint. They are omitted
+ * here rather than advertised-and-inert, and the cursor the BE actually
+ * paginates on (`afterKey`) is exposed instead.
+ */
+const ProductSecurityInput = TscBaseInput.omit({
+	search: true,
+	page: true,
+	limit: true,
+	sortKey: true,
+	sortOrder: true,
+}).extend({
 	includeDetails: z.boolean().default(false),
+	branch: z
+		.string()
+		.optional()
+		.describe(
+			'Git branch to report on. Required by the BE in practice: without it the ' +
+				'rollup returns an all-zero series. When omitted the tool resolves the ' +
+				"project's default branch the same way the Pulse UI does (priority order " +
+				'prod > master > main > uat > stage > qa > dev > develop).'
+		),
+	afterKey: z
+		.string()
+		.optional()
+		.describe(
+			'Keyset pagination cursor for the details view. Pass back the `afterKey` ' +
+				'from the previous page to fetch the next one. This is the only ' +
+				'pagination mechanism the security endpoint supports.'
+		),
 });
 
 export const getProductSecurityTool: ToolDefinition<typeof ProductSecurityInput> = {
 	name: 'pulse_get_product_security',
-	description: 'Product security scan results (SAST/DAST). (See instructions.ts.)',
+	description:
+		'Product security scan results (SAST/DAST). Returns a headline count of current ' +
+		'errors plus a daily graph, or the per-finding table with includeDetails. Scoped ' +
+		"to a single branch — defaults to the project's default branch, matching the " +
+		'Pulse UI. Paginate the details view with `afterKey`. (See instructions.ts.)',
 	inputSchema: ProductSecurityInput,
 	handler: async (args, ctx) => {
-		const repoIds = await resolveRepoIds(ctx.api, args.projectId, args.repoIds);
-		return ctx.api.request({
+		const [repoIds, branch] = await Promise.all([
+			resolveRepoIds(ctx.api, args.projectId, args.repoIds),
+			resolveDefaultBranch(ctx.api, args.projectId, args.branch),
+		]);
+		const res = await ctx.api.request({
 			method: 'GET',
 			path: `/projects/${args.projectId}/metrics/tsc/product-security${
 				args.includeDetails ? '/details' : ''
@@ -48,18 +91,34 @@ export const getProductSecurityTool: ToolDefinition<typeof ProductSecurityInput>
 			query: {
 				metric: TSC_METRIC,
 				category: 'PRODUCT_SECURITY',
-				branch: args.branch,
+				branch,
 				range: args.range,
 				repoIds,
-				search: args.search,
-				page: args.page,
-				limit: args.limit,
 				type: args.type,
-				sortKey: args.sortKey,
-				sortOrder: args.sortOrder,
 				rag: args.rag,
+				afterKey: args.afterKey,
 			},
 		});
+		// Security posture is a number people act on, so always say which branch it
+		// describes. A silent branch default is how this metric read 0/GREEN on
+		// projects with hundreds of live findings (PX-3758).
+		return {
+			...(res as Record<string, unknown>),
+			_scope: {
+				branch,
+				branchSource: args.branch ? 'passed' : 'default-resolved',
+				range: args.range,
+				repoIds,
+				...(branch
+					? {}
+					: {
+							note:
+								'No branch could be resolved for this project. The BE returns ' +
+								'an all-zero series without a branch, so a 0 headline here is ' +
+								'NOT evidence of a clean security posture — verify in the Pulse UI.',
+						}),
+			},
+		};
 	},
 };
 
@@ -119,7 +178,7 @@ export const getTestCoverageTool: ToolDefinition<typeof TestCoverageInput> = {
 const VersionUpgradesInput = TscBaseInput.extend({
 	// Override the base `rag` enum. The shared TscBaseInput is used by
 	// product-security and test-coverage which validate against a different
-	// BE DTO (legacy minor|major|patch|deprecated). The v2 version-upgrades
+	// BE DTO (`TscDTO`, red|amber|green|deprecated). The v2 version-upgrades
 	// endpoint validates against critical|major|minor|uptoDate — these are
 	// the same buckets the rollup view exposes, so callers can round-trip:
 	// take a bucket name from the rollup response and use it here to filter
