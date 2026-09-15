@@ -76,3 +76,60 @@ export async function resolveRepoIds(
 	const ctx = await getProjectContext(api, projectId);
 	return ctx.repoIds;
 }
+
+/**
+ * Branch priority order, copied verbatim from the FE's `sortByPriority`
+ * (projectx-frontend `src/utils/sortByPriority.ts`). The FE picks the first
+ * branch in this order that the project actually has and uses it as the
+ * default for every Technical-tab metric. We mirror it exactly so the MCP and
+ * the Pulse UI resolve the same default branch.
+ */
+const BRANCH_PRIORITY = ['prod', 'master', 'main', 'uat', 'stage', 'qa', 'dev', 'develop'];
+
+const BRANCH_CACHE = new Map<string, { branch: string | undefined; fetchedAt: number }>();
+
+/**
+ * Resolve the default branch for a project the same way the Pulse FE does.
+ *
+ * Why this exists: the BE's product-security rollup forwards `branch` straight
+ * to the downstream technical-metrics service, which returns an all-zero
+ * series when no branch is supplied. The FE never hits that path because its
+ * BranchesProvider always has a branch selected. The MCP did, which is why
+ * `pulse_get_product_security` silently reported 0 / GREEN on projects with
+ * hundreds of live findings (PX-3758).
+ *
+ * Returns undefined when the project has no GitHub branches or the lookup
+ * fails, so callers degrade to the previous behaviour rather than erroring.
+ */
+export async function resolveDefaultBranch(
+	api: PulseApiClient,
+	projectId: string,
+	supplied?: string
+): Promise<string | undefined> {
+	if (supplied) return supplied;
+
+	const cached = BRANCH_CACHE.get(projectId);
+	if (cached && Date.now() - cached.fetchedAt < TTL_MS) return cached.branch;
+
+	let branch: string | undefined;
+	try {
+		const raw = await api.request({
+			method: 'GET',
+			path: `/projects/${projectId}/github-branches`,
+		});
+		const names = (unwrap<string[]>(raw) ?? []).filter(
+			(n): n is string => typeof n === 'string' && n.length > 0
+		);
+		const lower = new Set(names.map((n) => n.toLowerCase()));
+		// No conventional branch name matched — fall back to whatever the
+		// project does have rather than sending nothing.
+		branch = BRANCH_PRIORITY.find((p) => lower.has(p)) ?? names[0];
+	} catch {
+		// Branch lookup is best-effort: a failure here must not take down the
+		// metric call that needed it.
+		branch = undefined;
+	}
+
+	BRANCH_CACHE.set(projectId, { branch, fetchedAt: Date.now() });
+	return branch;
+}
